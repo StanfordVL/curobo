@@ -2281,11 +2281,13 @@ class MotionGen(MotionGenConfig):
         joint_state: JointState,
         object_names: List[str],
         surface_sphere_radius: float = 0.001,
+        ee_pose: Optional[Pose] = None,
         link_name: str = "attached_object",
         sphere_fit_type: SphereFitType = SphereFitType.VOXEL_VOLUME_SAMPLE_SURFACE,
         voxelize_method: str = "ray",
         world_objects_pose_offset: Optional[Pose] = None,
         remove_obstacles_from_world_config: bool = False,
+        scale: float = 1.0,
     ) -> bool:
         """Attach an object or objects from world to a robot's link.
 
@@ -2297,6 +2299,8 @@ class MotionGen(MotionGenConfig):
             object_names: Names of objects in the world to attach to the robot.
             surface_sphere_radius: Radius (in meters) to use for points sampled on surface of the
                 object. A smaller radius will allow for generating motions very close to obstacles.
+            ee_pose: End-effector pose to attach the objects to. If None, the current end-effector
+                pose is used.
             link_name: Name of the link (frame) to attach the objects to. The assumption is that
                 this link does not have any geometry and all spheres of this link represent
                 attached objects.
@@ -2315,11 +2319,13 @@ class MotionGen(MotionGenConfig):
                 to the robot, it's disabled in the world collision checker. This flag when enabled,
                 also removes the object from world cache. For most cases, this should be set to
                 False.
+            scale: Scale factor to apply to the object before attaching to the robot.
         """
 
         log_info("MG: Attach objects to robot")
         kin_state = self.compute_kinematics(joint_state)
-        ee_pose = kin_state.ee_pose  # w_T_ee
+        if ee_pose is None:
+            ee_pose = kin_state.ee_pose  # w_T_ee
         if world_objects_pose_offset is not None:
             # add offset from ee:
             ee_pose = world_objects_pose_offset.inverse().multiply(ee_pose)
@@ -2353,6 +2359,7 @@ class MotionGen(MotionGenConfig):
                 n_spheres,
                 surface_sphere_radius,
                 pre_transform_pose=ee_pose,
+                scale=scale,
                 tensor_args=self.tensor_args,
                 fit_type=sphere_fit_type,
                 voxelize_method=voxelize_method,
@@ -2561,12 +2568,27 @@ class MotionGen(MotionGenConfig):
             world_objects_pose_offset=world_objects_pose_offset,
         )
 
-    def detach_object_from_robot(self, link_name: str = "attached_object") -> None:
+    def detach_object_from_robot(
+        self,
+        object_names: List[str],
+        link_name: str = "attached_object",
+    ) -> None:
         """Detach object from robot's link.
 
         Args:
             link_name: Name of the link.
         """
+        for i, x in enumerate(object_names):
+            obs = self.world_model.get_obstacle(x)
+            if obs is None:
+                log_error(
+                    "Object not found in world. Object name: "
+                    + x
+                    + " Name of objects in world: "
+                    + " ".join([i.name for i in self.world_model.objects])
+                )
+            self.world_coll_checker.enable_obstacle(enable=True, name=x)
+
         self.detach_spheres_from_robot(link_name)
 
     def attach_spheres_to_robot(
