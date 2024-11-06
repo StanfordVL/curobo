@@ -1367,9 +1367,16 @@ class MotionGenResult:
                 current_tensor = source_tensor.clone()
             else:
                 if isinstance(current_tensor, torch.Tensor) and isinstance(
-                    source_tensor, torch.Tensor
-                ):
-                    current_tensor[idx] = source_tensor[idx]
+                    source_tensor, torch.Tensor):
+                    # If the shapes are different, directly copy the tensor.
+                    if current_tensor.shape != source_tensor.shape:
+                        current_tensor = source_tensor.clone()
+                    # If they are zero-dimensional tensors, directly copy the value.
+                    elif len(current_tensor.shape) == 0:
+                        current_tensor[...] = source_tensor
+                    # Otherwise, copy the value at index.
+                    else:
+                        current_tensor[idx] = source_tensor[idx]
                 elif isinstance(current_tensor, JointState) and isinstance(
                     source_tensor, JointState
                 ):
