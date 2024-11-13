@@ -3239,8 +3239,8 @@ class MotionGen(MotionGenConfig):
         if plan_config.pose_cost_metric is not None:
             self.update_pose_cost_metric(PoseCostMetric.reset_metric())
 
-        if plan_config.time_dilation_factor is not None and torch.count_nonzero(result.success) > 0:
-            result.retime_trajectory(
+        if plan_config.time_dilation_factor is not None and torch.count_nonzero(best_result.success) > 0:
+            best_result.retime_trajectory(
                 plan_config.time_dilation_factor,
                 interpolation_kind=self.finetune_trajopt_solver.interpolation_type,
             )
