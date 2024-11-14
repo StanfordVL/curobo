@@ -4060,6 +4060,18 @@ class MotionGen(MotionGenConfig):
                     traj_result.solve_time = og_solve_time
                     if self.store_debug_in_result:
                         result.debug_info["finetune_trajopt_result"] = traj_result
+
+                    if solve_state.batch_size == 1:
+                        # traj_result.success is a tensor of length 1 already
+                        traj_result.interpolated_solution = traj_result.interpolated_solution.unsqueeze(0)
+                        traj_result.position_error = traj_result.position_error.unsqueeze(0)
+                        traj_result.rotation_error = traj_result.rotation_error.unsqueeze(0)
+                        if traj_result.cspace_error is not None:
+                            traj_result.cspace_error = traj_result.cspace_error.unsqueeze(0)
+                        traj_result.goalset_index = traj_result.goalset_index.unsqueeze(0)
+                        # traj_result.path_buffer_last_tstep is a python list of length 1 already
+                        traj_result.solution = traj_result.solution.unsqueeze(0)
+                        traj_result.optimized_dt = traj_result.optimized_dt.unsqueeze(0)
                 else:
                     traj_result.success = traj_result.success[::solve_state.num_trajopt_seeds]
                     traj_result.interpolated_solution = traj_result.interpolated_solution[::solve_state.num_trajopt_seeds]
