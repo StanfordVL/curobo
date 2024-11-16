@@ -4079,7 +4079,8 @@ class MotionGen(MotionGenConfig):
                     traj_result.rotation_error = traj_result.rotation_error[::solve_state.num_trajopt_seeds]
                     if traj_result.cspace_error is not None:
                         traj_result.cspace_error = traj_result.cspace_error[::solve_state.num_trajopt_seeds]
-                    traj_result.goalset_index = traj_result.goalset_index[::solve_state.num_trajopt_seeds]
+                    # traj_result.goalset_index is of shape (batch_size * num_seeds, interpolation_steps), wants (batch_size)
+                    traj_result.goalset_index = traj_result.goalset_index[::solve_state.num_trajopt_seeds, 0]
                     traj_result.path_buffer_last_tstep = traj_result.path_buffer_last_tstep[::solve_state.num_trajopt_seeds]
                     traj_result.solution = traj_result.solution[::solve_state.num_trajopt_seeds]
                     traj_result.optimized_dt = traj_result.optimized_dt[::solve_state.num_trajopt_seeds]
