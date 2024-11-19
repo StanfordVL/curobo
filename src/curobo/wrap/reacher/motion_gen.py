@@ -2290,6 +2290,7 @@ class MotionGen(MotionGenConfig):
         link_name: str = "attached_object",
         sphere_fit_type: SphereFitType = SphereFitType.VOXEL_VOLUME_SAMPLE_SURFACE,
         voxelize_method: str = "ray",
+        pitch_scale: float = 1.0,
         world_objects_pose_offset: Optional[Pose] = None,
         remove_obstacles_from_world_config: bool = False,
         scale: float = 1.0,
@@ -2368,6 +2369,7 @@ class MotionGen(MotionGenConfig):
                 tensor_args=self.tensor_args,
                 fit_type=sphere_fit_type,
                 voxelize_method=voxelize_method,
+                pitch_scale=pitch_scale,
             )
             sph_list += [s.position + [s.radius] for s in sph]
 

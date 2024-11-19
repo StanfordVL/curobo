@@ -129,7 +129,7 @@ def voxel_fit_surface_mesh(
 
 
 def get_voxelgrid_from_mesh(
-    mesh: trimesh.Trimesh, n_spheres: int, voxelize_method: str = "ray"
+    mesh: trimesh.Trimesh, n_spheres: int, voxelize_method: str = "ray", pitch_scale: float = 1.0,
 ) -> Tuple[Union[numpy.array, None], Union[numpy.array, None]]:
     """Get voxel grid from mesh using :py:func:`trimesh.voxel.creation.voxelize`.
 
@@ -144,6 +144,8 @@ def get_voxelgrid_from_mesh(
 
     """
     pitch = get_voxel_pitch(mesh, n_spheres)
+    # scale pitch to potentially get more fine-grained voxels
+    pitch *= pitch_scale
     radius = pitch / 2.0
     try:
         voxel = voxelize(mesh, pitch, voxelize_method)
@@ -217,6 +219,7 @@ def voxel_fit_volume_inside_mesh(
     mesh: trimesh.Trimesh,
     n_spheres: int,
     voxelize_method: str = "ray",
+    pitch_scale: float = 1.0,
 ) -> Tuple[numpy.ndarray, numpy.array]:
     """Voxelize mesh, fit spheres to volume. Return the fitted spheres.
 
@@ -229,7 +232,7 @@ def voxel_fit_volume_inside_mesh(
     Returns:
         Tuple of sphere positions and their radius.
     """
-    pts, rad = get_voxelgrid_from_mesh(mesh, 2 * n_spheres, voxelize_method)
+    pts, rad = get_voxelgrid_from_mesh(mesh, 2 * n_spheres, voxelize_method, pitch_scale)
     if pts is None:
         return pts, rad
     # compute signed distance:
@@ -250,6 +253,7 @@ def voxel_fit_volume_sample_surface_mesh(
     n_spheres: int,
     surface_sphere_radius: float,
     voxelize_method: str = "ray",
+    pitch_scale: float = 1.0,
 ) -> Tuple[numpy.ndarray, numpy.array]:
     """Voxelize mesh, fit spheres to volume, and sample surface for points.
 
@@ -264,7 +268,7 @@ def voxel_fit_volume_sample_surface_mesh(
     Returns:
         Tuple of sphere positions and their radius.
     """
-    pts, rad = voxel_fit_volume_inside_mesh(mesh, 0.75 * n_spheres, voxelize_method)
+    pts, rad = voxel_fit_volume_inside_mesh(mesh, 0.75 * n_spheres, voxelize_method, pitch_scale)
     if pts is None:
         return pts, rad
     # compute surface points:
@@ -287,6 +291,7 @@ def fit_spheres_to_mesh(
     surface_sphere_radius: float = 0.01,
     fit_type: SphereFitType = SphereFitType.VOXEL_VOLUME_SAMPLE_SURFACE,
     voxelize_method: str = "ray",
+    pitch_scale: float = 1.0,
 ) -> Tuple[numpy.ndarray, numpy.array]:
     """Approximate a mesh with spheres. See :ref:`attach_object_note` for more details.
 
@@ -299,6 +304,7 @@ def fit_spheres_to_mesh(
         fit_type: Sphere fit type, select from :py:class:`~SphereFitType`.
         voxelize_method: Voxelization method to use, select from
             :py:func:`trimesh.voxel.creation.voxelize`.
+        pitch_scale: Scale the pitch of the voxel grid. Defaults to 1.0.
 
     Returns:
         Tuple of spehre positions and their radius.
@@ -316,7 +322,7 @@ def fit_spheres_to_mesh(
         n_pts, n_radius = voxel_fit_mesh(mesh, n_spheres, surface_sphere_radius, voxelize_method)
     elif fit_type == SphereFitType.VOXEL_VOLUME_SAMPLE_SURFACE:
         n_pts, n_radius = voxel_fit_volume_sample_surface_mesh(
-            mesh, n_spheres, surface_sphere_radius, voxelize_method
+            mesh, n_spheres, surface_sphere_radius, voxelize_method, pitch_scale
         )
     if n_pts is None or len(n_pts) < 1:
         log_warn("sphere_fit: falling back to sampling surface")
