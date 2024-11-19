@@ -370,7 +370,7 @@ class ArmReacher(ArmBase, ArmReacherConfig):
                         current_pos = link_poses[k].position
                         current_quat = link_poses[k].quaternion
 
-                        pose_err, pos_err, quat_err = current_fn.forward_out_distance(
+                        pose_err, quat_err, pos_err = current_fn.forward_out_distance(
                             current_pos, current_quat, self._goal_buffer, k
                         )
                         pose_error.append(pose_err)

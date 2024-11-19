@@ -202,6 +202,7 @@ class Obstacle:
         fit_type: SphereFitType = SphereFitType.VOXEL_VOLUME_SAMPLE_SURFACE,
         voxelize_method: str = "ray",
         pre_transform_pose: Optional[Pose] = None,
+        scale: float = 1.0,
         tensor_args: TensorDeviceType = TensorDeviceType(),
     ) -> List[Sphere]:
         """Compute n spheres that fits in the volume of the object.
@@ -231,6 +232,16 @@ class Obstacle:
             obj_pose = Pose.from_list([0, 0, 0, 1, 0, 0, 0], tensor_args)
 
         points_cuda = tensor_args.to_device(pts)
+
+        # Similar to pre_transform_pose, we can also scale down the object slightly (e.g. 0.9) to prevent the contact
+        # of an object being grasped with the environment so that the following planning can succeed.
+
+        # Scale the point position in the object frame
+        points_cuda *= scale
+
+        # Scale the point radius as well
+        n_radius = [r * scale for r in n_radius]
+
         pts = obj_pose.transform_points(points_cuda).cpu().view(-1, 3).numpy()
 
         new_spheres = [
