@@ -2318,6 +2318,8 @@ class MotionGen(MotionGenConfig):
                 these points. This should be used for most cases.
             voxelize_method: Method to use for voxelization, passed to
                 :py:func:`trimesh.voxel.creation.voxelize`.
+            pitch_scale: Scale to apply to the scale of the voxel grid.
+            merge_meshes: Whether to merge all the meshes before voxelization.
             world_objects_pose_offset: Offset to apply to the object poses before attaching to the
                 robot. This is useful when attaching an object that's in contact with the world.
                 The offset is applied in the world frame before attaching to the robot.
