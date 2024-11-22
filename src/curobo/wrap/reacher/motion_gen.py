@@ -2290,6 +2290,8 @@ class MotionGen(MotionGenConfig):
         link_name: str = "attached_object",
         sphere_fit_type: SphereFitType = SphereFitType.VOXEL_VOLUME_SAMPLE_SURFACE,
         voxelize_method: str = "ray",
+        pitch_scale: float = 1.0,
+        merge_meshes: bool = False,
         world_objects_pose_offset: Optional[Pose] = None,
         remove_obstacles_from_world_config: bool = False,
         scale: float = 1.0,
@@ -2316,6 +2318,8 @@ class MotionGen(MotionGenConfig):
                 these points. This should be used for most cases.
             voxelize_method: Method to use for voxelization, passed to
                 :py:func:`trimesh.voxel.creation.voxelize`.
+            pitch_scale: Scale to apply to the scale of the voxel grid.
+            merge_meshes: Whether to merge all the meshes before voxelization.
             world_objects_pose_offset: Offset to apply to the object poses before attaching to the
                 robot. This is useful when attaching an object that's in contact with the world.
                 The offset is applied in the world frame before attaching to the robot.
@@ -2339,41 +2343,62 @@ class MotionGen(MotionGenConfig):
             # ee_T_w
         ee_pose = ee_pose.inverse()  # ee_T_w to multiply all objects later
         max_spheres = self.robot_cfg.kinematics.kinematics_config.get_number_of_spheres(link_name)
-        n_spheres = int(max_spheres / len(object_names))
         sphere_tensor = torch.zeros((max_spheres, 4))
         sphere_tensor[:, 3] = -10.0
-        sph_list = []
-        if n_spheres == 0:
-            log_warn(
-                "MG: No spheres found, max_spheres: "
-                + str(max_spheres)
-                + " n_objects: "
-                + str(len(object_names))
-            )
-            return False
-        for i, x in enumerate(object_names):
-            obs = self.world_model.get_obstacle(x)
-            if obs is None:
-                log_error(
-                    "Object not found in world. Object name: "
-                    + x
-                    + " Name of objects in world: "
-                    + " ".join([i.name for i in self.world_model.objects])
-                )
-            sph = obs.get_bounding_spheres(
-                n_spheres,
+
+        if merge_meshes:
+            merged_mesh = WorldConfig.create_merged_mesh_world(
+                WorldConfig(mesh=[self.world_model.get_obstacle(x) for x in object_names]),
+                process_color=False).mesh[0]
+            sph = merged_mesh.get_bounding_spheres(
+                max_spheres,
                 surface_sphere_radius,
                 pre_transform_pose=ee_pose,
                 scale=scale,
                 tensor_args=self.tensor_args,
                 fit_type=sphere_fit_type,
                 voxelize_method=voxelize_method,
+                pitch_scale=pitch_scale,
             )
-            sph_list += [s.position + [s.radius] for s in sph]
+            sph_list = [s.position + [s.radius] for s in sph]
+        else:
+            n_spheres = int(max_spheres / len(object_names))
+            sph_list = []
+            if n_spheres == 0:
+                log_warn(
+                    "MG: No spheres found, max_spheres: "
+                    + str(max_spheres)
+                    + " n_objects: "
+                    + str(len(object_names))
+                )
+                return False
+            for i, x in enumerate(object_names):
+                obs = self.world_model.get_obstacle(x)
+                if obs is None:
+                    log_error(
+                        "Object not found in world. Object name: "
+                        + x
+                        + " Name of objects in world: "
+                        + " ".join([i.name for i in self.world_model.objects])
+                    )
+                sph = obs.get_bounding_spheres(
+                    n_spheres,
+                    surface_sphere_radius,
+                    pre_transform_pose=ee_pose,
+                    scale=scale,
+                    tensor_args=self.tensor_args,
+                    fit_type=sphere_fit_type,
+                    voxelize_method=voxelize_method,
+                    pitch_scale=pitch_scale,
+                )
+                sph_list += [s.position + [s.radius] for s in sph]
 
+        # Disable obstacles in world collision checker
+        for x in object_names:
             self.world_coll_checker.enable_obstacle(enable=False, name=x)
             if remove_obstacles_from_world_config:
                 self.world_model.remove_obstacle(x)
+
         log_info("MG: Computed spheres for attach objects to robot")
 
         spheres = self.tensor_args.to_device(torch.as_tensor(sph_list))

@@ -201,6 +201,7 @@ class Obstacle:
         surface_sphere_radius: float = 0.002,
         fit_type: SphereFitType = SphereFitType.VOXEL_VOLUME_SAMPLE_SURFACE,
         voxelize_method: str = "ray",
+        pitch_scale: float = 1.0,
         pre_transform_pose: Optional[Pose] = None,
         scale: float = 1.0,
         tensor_args: TensorDeviceType = TensorDeviceType(),
@@ -214,7 +215,7 @@ class Obstacle:
         """
         mesh = self.get_trimesh_mesh()
         pts, n_radius = fit_spheres_to_mesh(
-            mesh, n_spheres, surface_sphere_radius, fit_type, voxelize_method=voxelize_method
+            mesh, n_spheres, surface_sphere_radius, fit_type, voxelize_method=voxelize_method, pitch_scale=pitch_scale,
         )
 
         obj_pose = Pose.from_list(self.pose, tensor_args)
