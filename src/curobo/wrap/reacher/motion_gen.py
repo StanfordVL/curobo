@@ -2350,6 +2350,10 @@ class MotionGen(MotionGenConfig):
             merged_mesh = WorldConfig.create_merged_mesh_world(
                 WorldConfig(mesh=[self.world_model.get_obstacle(x) for x in object_names]),
                 process_color=False).mesh[0]
+            # Center the merged mesh so that later the scaling (shrinking) is applied in the object frame (around the center of mass)
+            center_mass = merged_mesh.get_trimesh_mesh().center_mass
+            merged_mesh.pose[:3] = center_mass
+            merged_mesh.vertices -= center_mass
             sph = merged_mesh.get_bounding_spheres(
                 max_spheres,
                 surface_sphere_radius,
