@@ -174,6 +174,7 @@ class WrapBase(WrapConfig):
             debug={"steps": self.get_debug_data(), "cost": self.get_debug_cost()},
             raw_action=act_seq,
         )
+        breakpoint()
         return result
 
     @property

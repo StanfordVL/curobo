@@ -83,7 +83,7 @@ def main():
     usd_help = UsdHelper()
     act_distance = 0.2
 
-    n_envs = 2
+    n_envs = 5
     # assuming obstacles are in objects_path:
     my_world = World(stage_units_in_meters=1.0)
     my_world.scene.add_default_ground_plane()
@@ -129,13 +129,13 @@ def main():
         )
         robot_list.append(r[0])
     setup_curobo_logger("warn")
-
     # warmup curobo instance
 
     tensor_args = TensorDeviceType()
     robot_file = "franka.yml"
 
-    world_file = ["collision_test.yml", "collision_thin_walls.yml"]
+    world_file = ["collision_test.yml", "collision_thin_walls.yml", "collision_test.yml", "collision_thin_walls.yml", "collision_test.yml"]
+    # world_file = ["collision_test.yml" for i in range(n_envs)]
     world_cfg_list = []
     for i in range(n_envs):
         world_cfg = WorldConfig.from_dict(
@@ -145,6 +145,10 @@ def main():
         world_cfg.randomize_color(r=[0.2, 0.3], b=[0.0, 0.05], g=[0.2, 0.3])
         usd_help.add_world_to_stage(world_cfg, base_frame="/World/world_" + str(i))
         world_cfg_list.append(world_cfg)
+        
+        # # Remove later. save world model to file to visualize
+        # file_path = f"debug_mesh_{i}.obj"
+        # world_cfg.save_world_as_mesh(file_path)
 
     motion_gen_config = MotionGenConfig.load_from_robot_config(
         robot_cfg,
@@ -157,6 +161,7 @@ def main():
         collision_activation_distance=0.025,
         maximum_trajectory_dt=0.25,
     )
+    print("Loaded motion_gen_config")
     motion_gen = MotionGen(motion_gen_config)
     j_names = robot_cfg["kinematics"]["cspace"]["joint_names"]
     default_config = robot_cfg["kinematics"]["cspace"]["retract_config"]
@@ -182,7 +187,8 @@ def main():
         enable_graph=False, max_attempts=2, enable_finetune_trajopt=True
     )
     prev_goal = None
-    cmd_plan = [None, None]
+    # cmd_plan = [None, None]
+    cmd_plan = [None for i in range(n_envs)]
     art_controllers = [r.get_articulation_controller() for r in robot_list]
     cmd_idx = 0
     past_goal = None
@@ -251,6 +257,7 @@ def main():
             and cmd_plan[0] is None
             and cmd_plan[1] is None
         ):
+            breakpoint()
             full_js = full_js.get_ordered_joint_state(motion_gen.kinematics.joint_names)
             result = motion_gen.plan_batch_env(full_js, ik_goal, plan_config.clone())
 

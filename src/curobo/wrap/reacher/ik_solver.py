@@ -1067,6 +1067,7 @@ class IKSolver(IKSolverConfig):
         coord_position_seed = self.get_seed(
             num_seeds, goal_buffer.goal_pose, use_nn_seed, seed_config
         )
+        # breakpoint()
 
         if newton_iters is not None:
             self.solver.newton_optimizer.outer_iters = newton_iters
@@ -1077,7 +1078,7 @@ class IKSolver(IKSolverConfig):
         ik_result = self._get_result(num_seeds, result, goal_buffer.goal_pose, return_seeds)
         if ik_result.goalset_index is not None:
             ik_result.goalset_index[ik_result.goalset_index >= goal_pose.n_goalset] = 0
-
+        # breakpoint()
         return ik_result
 
     @profiler.record_function("ik/get_result")
@@ -1096,6 +1097,7 @@ class IKSolver(IKSolverConfig):
             IKResult object with solutions to the IK problems.
         """
         success = self._get_success(result.metrics, num_seeds=num_seeds)
+        # breakpoint()
         if result.metrics.null_space_error is not None:
             result.metrics.pose_error += result.metrics.null_space_error
         if result.metrics.cspace_error is not None:
@@ -1626,6 +1628,7 @@ def get_success(
         rotation_error <= rotation_threshold,
     ).view(-1, num_seeds)
     success = torch.logical_and(feasible, converge)
+    # breakpoint()
     return success
 
 

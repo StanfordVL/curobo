@@ -337,6 +337,9 @@ class WorldCollisionConfig:
     #: World obstacles to load for collision checking.
     world_model: Optional[Union[List[WorldConfig], WorldConfig]] = None
 
+    #: World obstacles to load for collision checking.
+    world_model_list: Optional[List[WorldConfig]] = None
+
     #: Number of obstacles to cache for collision checking across representations.
     #: Use this to create a fixed size buffer for collision checking, e.g, {'obb': 1000} will
     #: create a buffer of 1000 cuboids for each environment.
@@ -703,6 +706,7 @@ class WorldPrimitiveCollision(WorldCollision):
         self._init_cache()
 
         if self.world_model is not None:
+            print("In WorldPrimitiveCollision init. Loading collision model")
             if isinstance(self.world_model, list):
                 self.load_batch_collision_model(self.world_model)
             else:

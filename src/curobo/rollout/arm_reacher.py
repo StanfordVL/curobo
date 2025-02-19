@@ -362,6 +362,7 @@ class ArmReacher(ArmBase, ArmReacherConfig):
             quat_error = [out_metrics.rotation_error]
             link_poses = state.link_pose
 
+            # print("self._goal_buffer.links_goal_pose.keys(): ", self._goal_buffer.links_goal_pose.keys())
             for k in self._goal_buffer.links_goal_pose.keys():
                 if k != self.kinematics.ee_link:
                     current_fn = self._link_pose_convergence[k]
@@ -369,6 +370,7 @@ class ArmReacher(ArmBase, ArmReacherConfig):
                         # get link pose
                         current_pos = link_poses[k].position
                         current_quat = link_poses[k].quaternion
+                        # print("k, self.kinematics.ee_link, current_pos, current_quat: ", k, self.kinematics.ee_link, current_pos, current_quat)
 
                         pose_err, quat_err, pos_err = current_fn.forward_out_distance(
                             current_pos, current_quat, self._goal_buffer, k

@@ -1796,7 +1796,14 @@ class MotionGen(MotionGenConfig):
         Args:
             world: New world configuration for collision checking.
         """
-        self.world_coll_checker.load_collision_model(world, fix_cache_reference=self.use_cuda_graph)
+
+        # Edit by Arpit. Enable the option of loading curobo worlds in batch 
+        # self.world_coll_checker.load_collision_model(world, fix_cache_reference=self.use_cuda_graph)
+        if isinstance(world, list):
+            self.world_coll_checker.load_batch_collision_model(world)
+        else:
+            self.world_coll_checker.load_collision_model(world, fix_cache_reference=self.use_cuda_graph)
+
         self.graph_planner.reset_buffer()
 
     def clear_world_cache(self):
@@ -2666,6 +2673,11 @@ class MotionGen(MotionGenConfig):
     def world_model(self) -> WorldConfig:
         """Get the world model used for collision checking."""
         return self.world_coll_checker.world_model
+    
+    @property
+    def world_model_list(self) -> WorldConfig:
+        """Get the list of world models used for collision checking. This is used when we have multiple environments"""
+        return self.world_coll_checker.world_model_list
 
     @property
     def world_collision(self) -> WorldCollision:
@@ -3167,6 +3179,7 @@ class MotionGen(MotionGenConfig):
                 return result
 
         if solve_state.batch_env:
+            print("solve_state.batch_size, self.world_coll_checker.n_envs: ", solve_state.batch_size, self.world_coll_checker.n_envs)
             if solve_state.batch_size > self.world_coll_checker.n_envs:
                 log_error("Batch Env is less that goal batch")
             if plan_config.enable_graph:
@@ -3196,6 +3209,7 @@ class MotionGen(MotionGenConfig):
         }
         best_result = None
 
+        print("plan_config.max_attempts: ", plan_config.max_attempts)
         for n in range(plan_config.max_attempts):
             result = self._plan_from_solve_state_batch(
                 solve_state,
@@ -3204,6 +3218,8 @@ class MotionGen(MotionGenConfig):
                 plan_config,
                 link_poses=link_poses,
             )
+            print(f"Attempt {n}, success: ", result.success)
+            # breakpoint()
 
             time_dict["solve_time"] += result.solve_time
             time_dict["ik_time"] += result.ik_time
@@ -3862,6 +3878,7 @@ class MotionGen(MotionGenConfig):
         graph_success = 0
 
         # plan ik:
+        print("Calling _solve_ik_from_solve_state")
         ik_result = self._solve_ik_from_solve_state(
             goal_pose,
             solve_state,
@@ -3870,6 +3887,7 @@ class MotionGen(MotionGenConfig):
             plan_config.partial_ik_opt,
             link_poses,
         )
+        # breakpoint()
 
         if not plan_config.enable_graph and plan_config.partial_ik_opt:
             ik_result.success[:] = True
@@ -4045,6 +4063,7 @@ class MotionGen(MotionGenConfig):
                 og_value = self.trajopt_solver.interpolation_type
                 self.trajopt_solver.interpolation_type = InterpolateType.LINEAR_CUDA
 
+            print("Calling _solve_trajopt_from_solve_state 1")
             traj_result = self._solve_trajopt_from_solve_state(
                 goal,
                 solve_state,
@@ -4076,6 +4095,7 @@ class MotionGen(MotionGenConfig):
                         )
                         self.finetune_trajopt_solver.update_solver_dt(scaled_dt.item())
 
+                        print("Calling _solve_trajopt_from_solve_state 2")
                         traj_result = self._solve_trajopt_from_solve_state(
                             goal,
                             solve_state,
