@@ -331,6 +331,7 @@ class ArmReacher(ArmBase, ArmReacherConfig):
 
         return cost
 
+    # Note: state is the ee pose based on the IK joint values. state.ee_pos_seq.shape = (num_env*128, 1, 3)
     def convergence_fn(
         self, state: KinematicModelState, out_metrics: Optional[ArmReacherMetrics] = None
     ) -> ArmReacherMetrics:
@@ -353,6 +354,7 @@ class ArmReacher(ArmBase, ArmReacherConfig):
                 state.ee_pos_seq, state.ee_quat_seq, self._goal_buffer
             )
             out_metrics.goalset_index = self.pose_convergence.goalset_index_buffer  # .clone()
+        # breakpoint()
         if (
             self._goal_buffer.links_goal_pose is not None
             and self.convergence_cfg.pose_cfg is not None
@@ -378,6 +380,7 @@ class ArmReacher(ArmBase, ArmReacherConfig):
                         pose_error.append(pose_err)
                         position_error.append(pos_err)
                         quat_error.append(quat_err)
+            # breakpoint()
             out_metrics.pose_error = cat_max(pose_error)
             out_metrics.rotation_error = cat_max(quat_error)
             out_metrics.position_error = cat_max(position_error)

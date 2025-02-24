@@ -706,7 +706,6 @@ class WorldPrimitiveCollision(WorldCollision):
         self._init_cache()
 
         if self.world_model is not None:
-            print("In WorldPrimitiveCollision init. Loading collision model")
             if isinstance(self.world_model, list):
                 self.load_batch_collision_model(self.world_model)
             else:

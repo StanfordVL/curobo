@@ -1138,7 +1138,7 @@ class MotionGenResult:
     debug_info: Any = None
 
     #: status of motion generation query.
-    status: Optional[Union[MotionGenStatus, str]] = None
+    status: Optional[Union[MotionGenStatus, str, list[MotionGenStatus]]] = None
 
     #: number of attempts used before returning a solution.
     attempts: int = 1
@@ -1797,8 +1797,6 @@ class MotionGen(MotionGenConfig):
             world: New world configuration for collision checking.
         """
 
-        # Edit by Arpit. Enable the option of loading curobo worlds in batch 
-        # self.world_coll_checker.load_collision_model(world, fix_cache_reference=self.use_cuda_graph)
         if isinstance(world, list):
             self.world_coll_checker.load_batch_collision_model(world)
         else:
@@ -3179,7 +3177,6 @@ class MotionGen(MotionGenConfig):
                 return result
 
         if solve_state.batch_env:
-            print("solve_state.batch_size, self.world_coll_checker.n_envs: ", solve_state.batch_size, self.world_coll_checker.n_envs)
             if solve_state.batch_size > self.world_coll_checker.n_envs:
                 log_error("Batch Env is less that goal batch")
             if plan_config.enable_graph:
@@ -3209,7 +3206,6 @@ class MotionGen(MotionGenConfig):
         }
         best_result = None
 
-        print("plan_config.max_attempts: ", plan_config.max_attempts)
         for n in range(plan_config.max_attempts):
             result = self._plan_from_solve_state_batch(
                 solve_state,
@@ -3876,9 +3872,9 @@ class MotionGen(MotionGenConfig):
         trajopt_seed_success = None
         trajopt_newton_iters = None
         graph_success = 0
+        num_envs = goal_pose.position.shape[0]
 
         # plan ik:
-        print("Calling _solve_ik_from_solve_state")
         ik_result = self._solve_ik_from_solve_state(
             goal_pose,
             solve_state,
@@ -3904,6 +3900,13 @@ class MotionGen(MotionGenConfig):
         )
 
         ik_success = torch.count_nonzero(ik_result.success)
+        
+        # # TODO: make result.status a list instead of 1 value
+        # result.status = []
+        # for i in range(num_envs):
+        #     result.status.append(MotionGenStatus.SUCCESS)
+        # ik_successes = torch.count_nonzero(ik_result.success, dim=1)
+
         if ik_success == 0:
             result.status = MotionGenStatus.IK_FAIL
             result.success = result.success[:, 0]
@@ -4063,7 +4066,6 @@ class MotionGen(MotionGenConfig):
                 og_value = self.trajopt_solver.interpolation_type
                 self.trajopt_solver.interpolation_type = InterpolateType.LINEAR_CUDA
 
-            print("Calling _solve_trajopt_from_solve_state 1")
             traj_result = self._solve_trajopt_from_solve_state(
                 goal,
                 solve_state,
@@ -4095,7 +4097,6 @@ class MotionGen(MotionGenConfig):
                         )
                         self.finetune_trajopt_solver.update_solver_dt(scaled_dt.item())
 
-                        print("Calling _solve_trajopt_from_solve_state 2")
                         traj_result = self._solve_trajopt_from_solve_state(
                             goal,
                             solve_state,

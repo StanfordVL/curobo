@@ -57,7 +57,6 @@ class WorldMeshCollision(WorldPrimitiveCollision):
 
     def __init__(self, config: WorldCollisionConfig):
         """Initialize World Mesh Collision with given configuration."""
-        print("in WorldMeshCollision init")
         init_warp()
 
         self.tensor_args = config.tensor_args
@@ -99,7 +98,7 @@ class WorldMeshCollision(WorldPrimitiveCollision):
                 inside a recorded cuda graph, recreating the cache will break the graph as the
                 reference pointer to the cache will change.
         """
-        print("In load_collision_model ----------------------")
+        # print("In load_collision_model ----------------------")
         max_nmesh = len(world_model.mesh)
         if max_nmesh > 0:
             if self._mesh_tensor_list is None or self._mesh_tensor_list[0].shape[1] < max_nmesh:
@@ -130,7 +129,7 @@ class WorldMeshCollision(WorldPrimitiveCollision):
         Args:
             world_config_list: List of obstacles to load.
         """
-        print("In load_batch_collision_model ----------------------")
+        # print("In load_batch_collision_model ----------------------")
         self.world_model_list = world_config_list
         # breakpoint()
         max_nmesh = max([len(x.mesh) for x in world_config_list])
@@ -139,7 +138,7 @@ class WorldMeshCollision(WorldPrimitiveCollision):
             self._create_mesh_cache(max_nmesh)
 
         for env_idx, world_model in enumerate(world_config_list):
-            print("Calling load_collision_model for env_idx: ", env_idx)
+            # print("Calling load_collision_model for env_idx: ", env_idx)
             self.load_collision_model(world_model, env_idx=env_idx, load_obb_obs=False)
         super().load_batch_collision_model(world_config_list)
 
