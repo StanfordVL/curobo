@@ -121,7 +121,10 @@ class WorldMeshCollision(WorldPrimitiveCollision):
                 world_model, env_idx, fix_cache_reference=fix_cache_reference
             )
         else:
-            self.world_model = world_model
+            # This is important! We do this because in some other places in the code where self.world_model is used, (specifically I 
+            # faced this issue when adding attached object to the ee of the curobo robot) the object names meshes etc. are associated with env 0.
+            if env_idx == 0:
+                self.world_model = world_model
 
     def load_batch_collision_model(self, world_config_list: List[WorldConfig]):
         """Load multiple world obstacles into collision checker across environments.
@@ -476,6 +479,11 @@ class WorldMeshCollision(WorldPrimitiveCollision):
         Returns:
             Signed distance between query spheres and world obstacles.
         """
+        # breakpoint()
+        # if env_query_idx.sum().item() > 0:
+        #     print("---- In get sphere distance", env_query_idx)
+        #     breakpoint()
+
         if "mesh" not in self.collision_types or not self.collision_types["mesh"]:
             return super().get_sphere_distance(
                 query_sphere,
@@ -540,6 +548,9 @@ class WorldMeshCollision(WorldPrimitiveCollision):
         Returns:
             Tensor with binary collision results.
         """
+        # if env_query_idx.sum().item() > 0:
+        #     print("---- In get sphere colision", env_query_idx)
+        #     breakpoint()
         if "mesh" not in self.collision_types or not self.collision_types["mesh"]:
             return super().get_sphere_collision(
                 query_sphere,

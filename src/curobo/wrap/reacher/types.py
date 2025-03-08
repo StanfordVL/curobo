@@ -221,6 +221,7 @@ class ReacherSolveState:
         else:
             current_goal_buffer.goal_pose.copy_(goal_pose)
             if retract_config is not None:
+                # breakpoint()
                 current_goal_buffer.retract_state.copy_(retract_config)
             if goal_state is not None:
                 current_goal_buffer.goal_state.copy_(goal_state)

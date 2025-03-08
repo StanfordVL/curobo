@@ -331,7 +331,7 @@ class ArmReacher(ArmBase, ArmReacherConfig):
 
         return cost
 
-    # Note: state is the ee pose based on the IK joint values. state.ee_pos_seq.shape = (num_env*128, 1, 3)
+    # Note: state is the ee pose based on the IK joint values. state.ee_pos_seq.shape = (num_env*128, 1, 3) where 128 is the number of seeds
     def convergence_fn(
         self, state: KinematicModelState, out_metrics: Optional[ArmReacherMetrics] = None
     ) -> ArmReacherMetrics:

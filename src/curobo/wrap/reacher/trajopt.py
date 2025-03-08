@@ -571,6 +571,7 @@ class TrajOptResult(Sequence):
     raw_action: Optional[torch.Tensor] = None
     goalset_index: Optional[torch.Tensor] = None
     optimized_seeds: Optional[torch.Tensor] = None
+    feasible: Optional[T_BValue_bool] = None
 
     def __getitem__(self, idx: int) -> TrajOptResult:
         """Get item at index.
@@ -930,6 +931,7 @@ class TrajOptSolver(TrajOptSolverConfig):
         if newton_iters is not None:
             self.solver.newton_optimizer.outer_iters = self._og_newton_iters
             self.solver.newton_optimizer.fixed_iters = self._og_newton_fixed_iters
+        # breakpoint()
         return traj_result
 
     def solve_single(
@@ -1402,6 +1404,11 @@ class TrajOptSolver(TrajOptSolverConfig):
                 raw_action=result.raw_action,
                 goalset_index=result.metrics.goalset_index,
                 optimized_seeds=result.raw_action,
+                feasible=(
+                    result.metrics.feasible[..., -1]
+                    if result.metrics.feasible is not None
+                    else None
+                ),
             )
         else:
             # get path length:
@@ -1498,7 +1505,13 @@ class TrajOptSolver(TrajOptSolverConfig):
                 raw_action=best_raw_action,
                 goalset_index=goalset_index,
                 optimized_seeds=result.raw_action,
+                feasible=(
+                    result.metrics.feasible[..., -1]
+                    if result.metrics.feasible is not None
+                    else None
+                ),
             )
+        # breakpoint()
         return traj_result
 
     def batch_solve(
@@ -1533,11 +1546,20 @@ class TrajOptSolver(TrajOptSolverConfig):
         Returns:
             torch.Tensor: Linearly interpolated seeds.
         """
+        # if self.dof == 15:
+        #     start_q = start_state.position[:, -15:].view(-1, 1, self.dof)
+        # elif self.dof == 16:
+        #     start_q = start_state.position[:, -16:].view(-1, 1, self.dof)
+        # elif self.dof == 3:
+        #     start_q = start_state.position[:, :3].view(-1, 1, self.dof)
+        # else:
+        #     start_q = start_state.position.view(-1, 1, self.dof)
         start_q = start_state.position.view(-1, 1, self.dof)
         end_q = goal_state.position.view(-1, 1, self.dof)
         edges = torch.cat((start_q, end_q), dim=1)
 
         seed = self.delta_vec @ edges
+        # breakpoint()
         return seed
 
     def get_start_seed(self, start_state) -> torch.Tensor:
@@ -1602,6 +1624,7 @@ class TrajOptSolver(TrajOptSolverConfig):
 
         if isinstance(seed_traj, JointState):
             seed_traj = seed_traj.position
+        # breakpoint()
         if seed_traj is None:
             if goal.goal_state is not None and self.use_cspace_seed:
                 # get linear seed
@@ -1673,6 +1696,7 @@ class TrajOptSolver(TrajOptSolverConfig):
             n_seeds = self._get_seed_numbers(num_seeds)
         # linear seed: batch x dof -> batch x n_seeds x dof
         seed_set = []
+        # breakpoint()
         if n_seeds["linear"] > 0:
             linear_seed = self.get_linear_seed(start_state, goal_state)
 
@@ -1996,6 +2020,9 @@ def jit_feasible_success(
     elif cspace_error is not None:
         converge = cspace_error[..., -1] <= cspace_threshold
 
+    # print("position_error", position_error[..., -1])
+    # print("rotation_error", rotation_error[..., -1])
+    # print("feasible", feasible)
     success = torch.logical_and(feasible, converge)
     return success
 

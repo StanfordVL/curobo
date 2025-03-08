@@ -1155,6 +1155,9 @@ class MotionGenResult:
     #: stores the index of the goal pose reached when planning for a goalset.
     goalset_index: Optional[torch.Tensor] = None
 
+    # feasible: Added by Arpit
+    feasible: Optional[T_BValue_float] = None
+
     def clone(self):
         """Clone the current result."""
         m = MotionGenResult(
@@ -1182,6 +1185,7 @@ class MotionGenResult:
             ),
             interpolation_dt=self.interpolation_dt,
             goalset_index=self.goalset_index.clone() if self.goalset_index is not None else None,
+            feasible=self.feasible.clone() if self.feasible is not None else None,
         )
         return m
 
@@ -1224,6 +1228,9 @@ class MotionGenResult:
         # self.graph_plan = self._check_none_and_copy_idx(
         #    self.graph_plan, source_result.graph_plan, idx
         # )
+        self.feasible = self._check_none_and_copy_idx(
+            self.feasible, source_result.feasible, idx
+        )
 
         idx_list = idx.cpu().tolist()
         if source_result.path_buffer_last_tstep is not None:
@@ -1658,6 +1665,7 @@ class MotionGen(MotionGenConfig):
         goal_pose: Pose,
         plan_config: MotionGenPlanConfig = MotionGenPlanConfig(),
         link_poses: Dict[str, List[Pose]] = None,
+        warmup=False
     ) -> MotionGenResult:
         """Plan motions to reach (batch) poses in different collision environments.
 
@@ -1695,6 +1703,7 @@ class MotionGen(MotionGenConfig):
             goal_pose,
             plan_config,
             link_poses=link_poses,
+            warmup=warmup
         )
         return result
 
@@ -1963,6 +1972,7 @@ class MotionGen(MotionGenConfig):
                 retract_pose = Pose(state.ee_pos_seq, quaternion=state.ee_quat_seq)
                 start_state.position[..., warmup_joint_index] += warmup_joint_delta
 
+                # breakpoint()
                 for _ in range(3):
                     if batch_env_mode:
                         self.plan_batch_env(
@@ -1975,6 +1985,7 @@ class MotionGen(MotionGenConfig):
                                 enable_graph_attempt=None,
                             ),
                             link_poses=link_poses,
+                            warmup=True,
                         )
                     else:
                         self.plan_batch(
@@ -2673,7 +2684,7 @@ class MotionGen(MotionGenConfig):
         return self.world_coll_checker.world_model
     
     @property
-    def world_model_list(self) -> WorldConfig:
+    def world_model_list(self) -> List[WorldConfig]:
         """Get the list of world models used for collision checking. This is used when we have multiple environments"""
         return self.world_coll_checker.world_model_list
 
@@ -2817,6 +2828,7 @@ class MotionGen(MotionGenConfig):
         use_nn_seed: bool,
         partial_ik_opt: bool,
         link_poses: Optional[Dict[str, Pose]] = None,
+        warmup=False,
     ) -> IKResult:
         """Solve inverse kinematics from solve state, used by motion generation planning call.
 
@@ -2835,11 +2847,28 @@ class MotionGen(MotionGenConfig):
         newton_iters = None
         if partial_ik_opt:
             newton_iters = self.partial_ik_iters
+        # modify later
+        # if not warmup:
+        if self._dof == 15:
+            seed_config = start_state.position[:, -self._dof:].view(-1, 1, self._dof)
+            retract_config = start_state.position[:, -self._dof:].view(-1, self._dof)
+        elif self._dof == 16:
+            seed_config = start_state.position[:, -self._dof:].view(-1, 1, self._dof)
+            retract_config = start_state.position[:, -self._dof:].view(-1, self._dof)
+        elif self._dof == 3:
+            seed_config = start_state.position[:, :self._dof].view(-1, 1, self._dof)
+            retract_config = start_state.position[:, :self._dof].view(-1, self._dof)
+        else:
+            seed_config = start_state.position.view(-1, 1, self._dof)
+            retract_config = start_state.position.view(-1, self._dof)
+        # retract_config = start_state.position.view(-1, 19)
         ik_result = self.ik_solver.solve_any(
             solve_state.solve_type,
             goal_pose,
             start_state.position.view(-1, self._dof),
-            start_state.position.view(-1, 1, self._dof),
+            # start_state.position.view(-1, 18), # TODO: Remove hardcoding. This is 19 cause we are taking all joints into account
+            # retract_config,
+            seed_config,
             solve_state.num_trajopt_seeds,
             solve_state.num_ik_seeds,
             use_nn_seed,
@@ -3146,6 +3175,7 @@ class MotionGen(MotionGenConfig):
         goal_pose: Pose,
         plan_config: MotionGenPlanConfig = MotionGenPlanConfig(),
         link_poses: Optional[Dict[str, Pose]] = None,
+        warmup=False
     ):
         """Plan batch attempts for a given reacher solve state.
 
@@ -3213,6 +3243,7 @@ class MotionGen(MotionGenConfig):
                 goal_pose,
                 plan_config,
                 link_poses=link_poses,
+                warmup=warmup,
             )
             print(f"Attempt {n}, success: ", result.success)
             # breakpoint()
@@ -3854,6 +3885,7 @@ class MotionGen(MotionGenConfig):
         goal_pose: Pose,
         plan_config: MotionGenPlanConfig = MotionGenPlanConfig(),
         link_poses: Optional[Dict[str, Pose]] = None,
+        warmup=False,
     ) -> MotionGenResult:
         """Plan from a given reacher solve state in batch mode.
 
@@ -3875,6 +3907,7 @@ class MotionGen(MotionGenConfig):
         num_envs = goal_pose.position.shape[0]
 
         # plan ik:
+        # print("trying to find ik solution")
         ik_result = self._solve_ik_from_solve_state(
             goal_pose,
             solve_state,
@@ -3882,7 +3915,9 @@ class MotionGen(MotionGenConfig):
             plan_config.use_nn_ik_seed,
             plan_config.partial_ik_opt,
             link_poses,
+            warmup=warmup
         )
+        # print("ik_result.success: ", ik_result.success)
         # breakpoint()
 
         if not plan_config.enable_graph and plan_config.partial_ik_opt:
@@ -4039,6 +4074,7 @@ class MotionGen(MotionGenConfig):
                         seed_link_poses[k] = link_poses[k].repeat_seeds(
                             solve_state.num_trajopt_seeds
                         )
+                # breakpoint()
                 seed_goal = Goal(
                     goal_pose=goal_pose.repeat_seeds(solve_state.num_trajopt_seeds),
                     current_state=start_state.repeat_seeds(solve_state.num_trajopt_seeds),
@@ -4066,6 +4102,7 @@ class MotionGen(MotionGenConfig):
                 og_value = self.trajopt_solver.interpolation_type
                 self.trajopt_solver.interpolation_type = InterpolateType.LINEAR_CUDA
 
+            # print("trying to find motion plan solution")
             traj_result = self._solve_trajopt_from_solve_state(
                 goal,
                 solve_state,
@@ -4073,6 +4110,8 @@ class MotionGen(MotionGenConfig):
                 newton_iters=trajopt_newton_iters,
                 return_all_solutions=plan_config.enable_finetune_trajopt,
             )
+            # breakpoint()
+            # print("traj_result.success: ", traj_result.success)
 
             # output of traj result will have 1 solution per batch
 
@@ -4104,6 +4143,7 @@ class MotionGen(MotionGenConfig):
                             trajopt_instance=self.finetune_trajopt_solver,
                             num_seeds_override=solve_state.num_trajopt_seeds,
                         )
+                        # breakpoint()
 
                     result.finetune_time = traj_result.solve_time
 
@@ -4147,6 +4187,7 @@ class MotionGen(MotionGenConfig):
             result.path_buffer_last_tstep = traj_result.path_buffer_last_tstep
             result.optimized_plan = traj_result.solution
             result.optimized_dt = traj_result.optimized_dt
+            result.feasible = traj_result.feasible
             if torch.count_nonzero(traj_result.success) == 0:
                 result.status = MotionGenStatus.TRAJOPT_FAIL
                 # result.success[:] = False

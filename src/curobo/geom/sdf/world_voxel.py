@@ -226,7 +226,7 @@ class WorldVoxelCollision(WorldMeshCollision):
 
         max_obs = max(c_len)
         if max_obs < 1:
-            log_warn("No obbs found")
+            # log_warn("No obbs found")
             return
         # check if number of environments is same as config:
         reset_buffers = False

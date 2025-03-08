@@ -768,7 +768,7 @@ class WorldPrimitiveCollision(WorldCollision):
 
         max_obb = max(c_len)
         if max_obb < 1:
-            log_warn("No obbs found")
+            # log_warn("No obbs found")
             return
         # check if number of environments is same as config:
         reset_buffers = False

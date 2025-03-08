@@ -174,10 +174,10 @@ def main():
     # )
 
     add_extensions(simulation_app, args.headless_mode)
-    config = RobotWorldConfig.load_from_config(
-        robot_file, world_cfg_list, collision_activation_distance=act_distance
-    )
-    model = RobotWorld(config)
+    # config = RobotWorldConfig.load_from_config(
+    #     robot_file, world_cfg_list, collision_activation_distance=act_distance
+    # )
+    # model = RobotWorld(config)
     i = 0
     max_distance = 0.5
     x_sph = torch.zeros((n_envs, 1, 1, 4), device=tensor_args.device, dtype=tensor_args.dtype)

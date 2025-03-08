@@ -1064,6 +1064,7 @@ class IKSolver(IKSolverConfig):
         """
         # create goal buffer:
         goal_buffer = self._update_goal_buffer(solve_state, goal_pose, retract_config, link_poses)
+        # breakpoint()
         coord_position_seed = self.get_seed(
             num_seeds, goal_buffer.goal_pose, use_nn_seed, seed_config
         )
@@ -1169,6 +1170,7 @@ class IKSolver(IKSolverConfig):
                 use_nn_seed=use_nn_seed,
                 pose=goal_pose,
             )
+            # breakpoint()
             coord_position_seed = torch.cat((seed_config, coord_position_seed), dim=1)
         else:
             coord_position_seed = seed_config

@@ -169,6 +169,7 @@ def get_pose_distance(
     if batch_pose_idx.shape[0] != batch_size:
         raise ValueError("Index buffer size is different from batch size")
 
+    # print("goal_position.shape: ", goal_position.shape)
     r = geom_cu.pose_distance(
         out_distance,
         out_position_distance,
@@ -177,9 +178,9 @@ def get_pose_distance(
         out_q_vec,
         out_idx,
         current_position,
-        goal_position.view(-1),
+        goal_position.reshape(-1),
         current_quat,
-        goal_quat.view(-1),
+        goal_quat.reshape(-1),
         vec_weight,
         weight,
         vec_convergence,
