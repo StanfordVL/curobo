@@ -2347,6 +2347,7 @@ class MotionGen(MotionGenConfig):
             scale: Scale factor to apply to the object before attaching to the robot.
         """
 
+        object_names_0th_env = object_names[0]
         log_info("MG: Attach objects to robot")
         kin_state = self.compute_kinematics(joint_state)
         if ee_pose is None:
@@ -2364,7 +2365,7 @@ class MotionGen(MotionGenConfig):
 
         if merge_meshes:
             merged_mesh = WorldConfig.create_merged_mesh_world(
-                WorldConfig(mesh=[self.world_model.get_obstacle(x) for x in object_names]),
+                WorldConfig(mesh=[self.world_model.get_obstacle(x) for x in object_names_0th_env]),
                 process_color=False).mesh[0]
             # Center the merged mesh so that later the scaling (shrinking) is applied in the object frame (around the center of mass)
             center_mass = merged_mesh.get_trimesh_mesh().center_mass
@@ -2382,17 +2383,17 @@ class MotionGen(MotionGenConfig):
             )
             sph_list = [s.position + [s.radius] for s in sph]
         else:
-            n_spheres = int(max_spheres / len(object_names))
+            n_spheres = int(max_spheres / len(object_names_0th_env))
             sph_list = []
             if n_spheres == 0:
                 log_warn(
                     "MG: No spheres found, max_spheres: "
                     + str(max_spheres)
                     + " n_objects: "
-                    + str(len(object_names))
+                    + str(len(object_names_0th_env))
                 )
                 return False
-            for i, x in enumerate(object_names):
+            for i, x in enumerate(object_names_0th_env):
                 obs = self.world_model.get_obstacle(x)
                 if obs is None:
                     log_error(
@@ -2413,11 +2414,13 @@ class MotionGen(MotionGenConfig):
                 )
                 sph_list += [s.position + [s.radius] for s in sph]
 
-        # Disable obstacles in world collision checker
-        for x in object_names:
-            self.world_coll_checker.enable_obstacle(enable=False, name=x)
-            if remove_obstacles_from_world_config:
-                self.world_model.remove_obstacle(x)
+        # Disable obstacles in world collision checker 
+        # Modified this. Need to disable obstacle in all envs.
+        for env_idx in range(len(self.world_model_list)):
+            for x in object_names[env_idx]:
+                self.world_coll_checker.enable_obstacle(enable=False, name=x, env_idx=env_idx)
+                if remove_obstacles_from_world_config:
+                    self.world_model.remove_obstacle(x)
 
         log_info("MG: Computed spheres for attach objects to robot")
 
@@ -2628,16 +2631,19 @@ class MotionGen(MotionGenConfig):
         Args:
             link_name: Name of the link.
         """
-        for i, x in enumerate(object_names):
-            obs = self.world_model.get_obstacle(x)
-            if obs is None:
-                log_error(
-                    "Object not found in world. Object name: "
-                    + x
-                    + " Name of objects in world: "
-                    + " ".join([i.name for i in self.world_model.objects])
-                )
-            self.world_coll_checker.enable_obstacle(enable=True, name=x)
+        # Modified this. Need to enable obstacle in all envs.
+        for env_idx in range(len(self.world_model_list)):
+            object_names_per_env = object_names[env_idx]
+            for i, x in enumerate(object_names_per_env):
+                obs = self.world_model_list[env_idx].get_obstacle(x)
+                if obs is None:
+                    log_error(
+                        "Object not found in world. Object name: "
+                        + x
+                        + " Name of objects in world: "
+                        + " ".join([i.name for i in self.world_model.objects])
+                    )
+                self.world_coll_checker.enable_obstacle(enable=True, name=x, env_idx=env_idx)
 
         self.detach_spheres_from_robot(link_name)
 
@@ -3245,7 +3251,7 @@ class MotionGen(MotionGenConfig):
                 link_poses=link_poses,
                 warmup=warmup,
             )
-            print(f"Attempt {n}, success: ", result.success)
+            # print(f"Attempt {n}, success: ", result.success)
             # breakpoint()
 
             time_dict["solve_time"] += result.solve_time
