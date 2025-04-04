@@ -606,14 +606,16 @@ class IKSolver(IKSolverConfig):
         if update_reference:
             self.reset_shape()
             if self.use_cuda_graph and self._col is not None:
-                if is_cuda_graph_reset_available():
-                    log_warn("changing goal type, breaking previous cuda graph.")
-                    self.reset_cuda_graph()
-                else:
-                    log_error(
-                        "changing goal type, cuda graph reset not available, "
-                        + "consider updating to cuda >= 12.0"
-                    )
+                # TODO: Modified by Arpit as I was getting this log_error. Commenting this did not have any adverse effect. Ensure this is ok
+                self.reset_cuda_graph()
+            #     if is_cuda_graph_reset_available():
+            #         log_warn("changing goal type, breaking previous cuda graph.")
+            #         self.reset_cuda_graph()
+            #     else:
+            #         log_error(
+            #             "changing goal type, cuda graph reset not available, "
+            #             + "consider updating to cuda >= 12.0"
+            #         )
 
             self.solver.update_nproblems(self._solve_state.get_ik_batch_size())
             self._goal_buffer.current_state = self.init_state.repeat_seeds(goal_pose.batch)

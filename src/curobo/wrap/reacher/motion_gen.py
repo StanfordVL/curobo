@@ -3921,6 +3921,13 @@ class MotionGen(MotionGenConfig):
 
             result.graph_time = graph_result.solve_time
             result.solve_time += graph_result.solve_time
+            # QUESTION: What does graph success mean? Does it mean that a successful non-collision path has been found? 
+            # (basically MP problem is solved but maybe not the best path)
+            # QUESTION: Why use this solution only as a seed and not return it as the final motion plan? 
+            # I noticed that when only using graph planner oftentimes see collisions in the final motion plan. Why would the graph based planner have a successful
+            # path that is not collision free (as this graph planner also uses obstacles)?
+            # Don't understand why and how does the trajopt solver fix this?
+            # print("graph_success", graph_success)
             if graph_success > 0:
                 # path = graph_result.interpolated_plan
                 result.graph_plan = graph_result.interpolated_plan
