@@ -1589,6 +1589,7 @@ class MotionGen(MotionGenConfig):
         goal_pose: Pose,
         plan_config: MotionGenPlanConfig = MotionGenPlanConfig(),
         link_poses: Dict[str, List[Pose]] = None,
+        eyes_targets: Dict[str, List[Pose]] = None,
     ) -> MotionGenResult:
         """Plan motions to reach a batch of goal poses from a batch of start joint states.
 
@@ -1614,6 +1615,7 @@ class MotionGen(MotionGenConfig):
             goal_pose,
             plan_config,
             link_poses=link_poses,
+            eyes_targets=eyes_targets,
         )
         return result
 
@@ -1982,6 +1984,7 @@ class MotionGen(MotionGenConfig):
                                 enable_graph_attempt=None if not enable_graph else 20,
                             ),
                             link_poses=link_poses,
+                            eyes_targets={"eyes": retract_pose},
                         )
             else:
                 retract_pose = Pose(
@@ -3136,6 +3139,7 @@ class MotionGen(MotionGenConfig):
         goal_pose: Pose,
         plan_config: MotionGenPlanConfig = MotionGenPlanConfig(),
         link_poses: Optional[Dict[str, Pose]] = None,
+        eyes_targets: Optional[Dict[str, Pose]] = None,
     ):
         """Plan batch attempts for a given reacher solve state.
 
@@ -3158,8 +3162,8 @@ class MotionGen(MotionGenConfig):
             if not valid_query:
                 result = MotionGenResult(
                     success=torch.as_tensor(
-                        [False for _ in solve_state.batch_size],
-                        device=self.motion_gen.tensor_args.device,
+                        [False] * solve_state.batch_size,
+                        device=self.tensor_args.device,
                     ),
                     valid_query=valid_query,
                     status="Invalid Hold Partial Pose",
@@ -3203,6 +3207,7 @@ class MotionGen(MotionGenConfig):
                 goal_pose,
                 plan_config,
                 link_poses=link_poses,
+                eyes_targets=eyes_targets,
             )
 
             time_dict["solve_time"] += result.solve_time
@@ -3842,6 +3847,7 @@ class MotionGen(MotionGenConfig):
         goal_pose: Pose,
         plan_config: MotionGenPlanConfig = MotionGenPlanConfig(),
         link_poses: Optional[Dict[str, Pose]] = None,
+        eyes_targets: Optional[Dict[str, Pose]] = None,
     ) -> MotionGenResult:
         """Plan from a given reacher solve state in batch mode.
 
@@ -4005,6 +4011,7 @@ class MotionGen(MotionGenConfig):
                 goal_pose=goal_pose,
                 current_state=start_state,
                 links_goal_pose=link_poses,
+                eyes_targets=eyes_targets,
             )
             # generate seeds:
             if trajopt_seed_traj is None or (
@@ -4018,11 +4025,20 @@ class MotionGen(MotionGenConfig):
                         seed_link_poses[k] = link_poses[k].repeat_seeds(
                             solve_state.num_trajopt_seeds
                         )
+
+                seed_eyes_targets = None
+                if eyes_targets is not None:
+                    seed_eyes_targets = {}
+                    for k in eyes_targets.keys():
+                        seed_eyes_targets[k] = eyes_targets[k].repeat_seeds(
+                            solve_state.num_trajopt_seeds
+                        )
                 seed_goal = Goal(
                     goal_pose=goal_pose.repeat_seeds(solve_state.num_trajopt_seeds),
                     current_state=start_state.repeat_seeds(solve_state.num_trajopt_seeds),
                     goal_state=JointState.from_position(goal_config.view(-1, self._dof)),
                     links_goal_pose=seed_link_poses,
+                    eyes_targets=seed_eyes_targets,
                 )
                 if trajopt_seed_traj is not None:
                     trajopt_seed_traj = trajopt_seed_traj.transpose(0, 1).contiguous()

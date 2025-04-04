@@ -71,11 +71,12 @@ cost:
     speed_dt: 0.01 # used only for speed metric
     activation_distance: 0.025
 
-
   self_collision_cfg:
     weight: 5000.0
     classify: False
 
+  eyes_target_cfg:
+    weight: 15000.0
 
 
 lbfgs:

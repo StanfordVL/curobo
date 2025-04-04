@@ -15,6 +15,7 @@ from typing import Dict, List, Optional
 # Third Party
 import torch
 import torch.autograd.profiler as profiler
+import omnigibson.utils.transform_utils as T
 
 # CuRobo
 from curobo.geom.sdf.world import WorldCollision
@@ -90,6 +91,7 @@ class ArmReacherCostConfig(ArmCostConfig):
     zero_vel_cfg: Optional[CostConfig] = None
     zero_jerk_cfg: Optional[CostConfig] = None
     link_pose_cfg: Optional[PoseCostConfig] = None
+    eyes_target_cfg: Optional[CostConfig] = None
 
     @staticmethod
     def _get_base_keys():
@@ -103,6 +105,7 @@ class ArmReacherCostConfig(ArmCostConfig):
             "zero_vel_cfg": CostConfig,
             "zero_jerk_cfg": CostConfig,
             "link_pose_cfg": PoseCostConfig,
+            "eyes_target_cfg": CostConfig,
         }
         new_k.update(base_k)
         return new_k
@@ -191,6 +194,7 @@ class ArmReacher(ArmBase, ArmReacherConfig):
             for i in self.kinematics.link_names:
                 if i != self.kinematics.ee_link:
                     self._link_pose_costs[i] = PoseCost(self.cost_cfg.link_pose_cfg)
+
         if self.cost_cfg.straight_line_cfg is not None:
             self.straight_line_cost = StraightLineCost(self.cost_cfg.straight_line_cfg)
         if self.cost_cfg.zero_vel_cfg is not None:
@@ -210,6 +214,16 @@ class ArmReacher(ArmBase, ArmReacherConfig):
             if self.zero_jerk_cost.hinge_value is not None:
                 self._compute_g_dist = True
 
+        self.eyes_target_cost = None
+        if self.cost_cfg.eyes_target_cfg is not None:
+            self.eyes_target_cost = ZeroCost(self.cost_cfg.eyes_target_cfg)
+            if self.eyes_target_cost.hinge_value is not None:
+                self._compute_g_dist = True
+
+        # z_neg pointing outward from the eyes
+        self.z_neg_vec = torch.tensor(
+            [0.0, 0.0, -1.0], device=self.tensor_args.device, dtype=self.tensor_args.dtype
+        )
         self.z_tensor = torch.tensor(
             0, device=self.tensor_args.device, dtype=self.tensor_args.dtype
         )
@@ -323,6 +337,32 @@ class ArmReacher(ArmBase, ArmReacherConfig):
                 g_dist,
             )
             cost_list.append(z_vel)
+
+        if self.cost_cfg.eyes_target_cfg is not None and self.eyes_target_cost.enabled:
+            current_eye_pos = state.link_pose["eyes"].position
+            current_eye_quat = state.link_pose["eyes"].quaternion
+            eyes_targets_pos = self._goal_buffer.eyes_targets["eyes"].position
+            assert eyes_targets_pos.shape == (1, 3)
+            desired_vector = eyes_targets_pos[0] - current_eye_pos
+            desired_unit_vector = desired_vector / desired_vector.norm(dim=-1, keepdim=True)
+
+            # wxyz -> xyzw
+            current_eye_quat_xyzw = current_eye_quat.clone()
+            current_eye_quat_xyzw[..., 0] = current_eye_quat[..., 1]
+            current_eye_quat_xyzw[..., 1] = current_eye_quat[..., 2]
+            current_eye_quat_xyzw[..., 2] = current_eye_quat[..., 3]
+            current_eye_quat_xyzw[..., 3] = current_eye_quat[..., 0]
+            current_eye_mat = T.quat2mat(current_eye_quat_xyzw)
+            current_unit_vector = current_eye_mat @ self.z_neg_vec
+            assert desired_unit_vector.shape == current_unit_vector.shape
+            # cosine similarity is [-1, 1]
+            cosine_similarity = torch.sum(desired_unit_vector * current_unit_vector, dim=-1)
+            # cosine distance is [0, 2]
+            cosine_distance = 1.0 - cosine_similarity
+            sqrt_cosine_distance = torch.sqrt(cosine_distance).unsqueeze(-1)
+            eyes_cost = self.eyes_target_cost.forward(sqrt_cosine_distance, g_dist)
+            cost_list.append(eyes_cost)
+
         with profiler.record_function("cat_sum"):
             if self.sum_horizon:
                 cost = cat_sum_horizon_reacher(cost_list)

@@ -93,6 +93,7 @@ class Goal(Sequence):
     goal_state: Optional[State] = None
     goal_pose: Pose = Pose()
     links_goal_pose: Optional[Dict[str, Pose]] = None
+    eyes_targets: Optional[Dict[str, Pose]] = None
     current_state: Optional[State] = None
     retract_state: Optional[T_DOF] = None
     batch: int = -1  # NOTE: add another variable for size of index tensors?
@@ -176,12 +177,14 @@ class Goal(Sequence):
 
     def repeat_seeds(self, num_seeds: int):
         # across seeds, the data is the same, so could we just expand batch_idx
-        goal_pose = goal_state = current_state = links_goal_pose = retract_state = None
+        goal_pose = goal_state = current_state = links_goal_pose = eyes_targets = retract_state = None
         batch_enable_idx = batch_pose_idx = batch_world_idx = batch_current_state_idx = None
         batch_retract_state_idx = batch_goal_state_idx = None
 
         if self.links_goal_pose is not None:
             links_goal_pose = self.links_goal_pose
+        if self.eyes_targets is not None:
+            eyes_targets = self.eyes_targets
         if self.goal_pose is not None:
             goal_pose = self.goal_pose
         #    goal_pose = self.goal_pose.repeat_seeds(num_seeds)
@@ -221,6 +224,7 @@ class Goal(Sequence):
             batch_retract_state_idx=batch_retract_state_idx,
             batch_goal_state_idx=batch_goal_state_idx,
             links_goal_pose=links_goal_pose,
+            eyes_targets=eyes_targets,
         )
 
     def clone(self):
@@ -236,6 +240,7 @@ class Goal(Sequence):
             batch_retract_state_idx=self.batch_retract_state_idx,
             batch_goal_state_idx=self.batch_goal_state_idx,
             links_goal_pose=self.links_goal_pose,
+            eyes_targets=self.eyes_targets,
             n_goalset=self.n_goalset,
         )
 
@@ -246,11 +251,13 @@ class Goal(Sequence):
         # For each seed in optimization, we use kernel_mat to transform to many parallel goals
         # This can be modified to just multiply self.batch and update self.batch by the shape of self.batch
         # TODO: add other elements
-        goal_pose = goal_state = current_state = links_goal_pose = None
+        goal_pose = goal_state = current_state = links_goal_pose = eyes_targets = None
         batch_enable_idx = batch_pose_idx = batch_world_idx = batch_current_state_idx = None
         batch_retract_state_idx = batch_goal_state_idx = None
         if self.links_goal_pose is not None:
             links_goal_pose = self.links_goal_pose
+        if self.eyes_targets is not None:
+            eyes_targets = self.eyes_targets
         if self.goal_pose is not None:
             goal_pose = self.goal_pose  # .apply_kernel(kernel_mat)
         if self.goal_state is not None:
@@ -292,6 +299,7 @@ class Goal(Sequence):
             batch_goal_state_idx=batch_goal_state_idx,
             batch_retract_state_idx=batch_retract_state_idx,
             links_goal_pose=links_goal_pose,
+            eyes_targets=eyes_targets,
         )
 
     def to(self, tensor_args: TensorDeviceType):
@@ -328,6 +336,14 @@ class Goal(Sequence):
                 for k in goal.links_goal_pose.keys():
                     self.links_goal_pose[k] = self._copy_buffer(
                         self.links_goal_pose[k], goal.links_goal_pose[k]
+                    )
+        if goal.eyes_targets is not None:
+            if self.eyes_targets is None:
+                self.eyes_targets = goal.eyes_targets
+            else:
+                for k in goal.eyes_targets.keys():
+                    self.eyes_targets[k] = self._copy_buffer(
+                        self.eyes_targets[k], goal.eyes_targets[k]
                     )
         self._update_batch_size()
         # copy pose indices as well?
