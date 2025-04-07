@@ -193,6 +193,8 @@ class ArmReacher(ArmBase, ArmReacherConfig):
         if self.cost_cfg.link_pose_cfg is not None:
             for i in self.kinematics.link_names:
                 if i != self.kinematics.ee_link:
+                    # Make sure each PoseCost has its own copy of weight tensor
+                    self.cost_cfg.link_pose_cfg.weight = self.cost_cfg.link_pose_cfg.weight.clone()
                     self._link_pose_costs[i] = PoseCost(self.cost_cfg.link_pose_cfg)
 
         if self.cost_cfg.straight_line_cfg is not None:
