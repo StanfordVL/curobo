@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional
 
 # Third Party
+import copy
 import torch
 import torch.autograd.profiler as profiler
 import omnigibson.utils.transform_utils as T
@@ -193,9 +194,8 @@ class ArmReacher(ArmBase, ArmReacherConfig):
         if self.cost_cfg.link_pose_cfg is not None:
             for i in self.kinematics.link_names:
                 if i != self.kinematics.ee_link:
-                    # Make sure each PoseCost has its own copy of weight tensor
-                    self.cost_cfg.link_pose_cfg.weight = self.cost_cfg.link_pose_cfg.weight.clone()
-                    self._link_pose_costs[i] = PoseCost(self.cost_cfg.link_pose_cfg)
+                    # Make sure each PoseCost (like eyes, right_eef_link) has its own copy of link_pose_cfg 
+                    self._link_pose_costs[i] = PoseCost(copy.deepcopy(self.cost_cfg.link_pose_cfg))
 
         if self.cost_cfg.straight_line_cfg is not None:
             self.straight_line_cost = StraightLineCost(self.cost_cfg.straight_line_cfg)
