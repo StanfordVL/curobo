@@ -22,6 +22,7 @@ import numpy as np
 import torch
 import trimesh
 import trimesh.scene
+# trimesh.ray.ray_pyembree.ray_pyembree = None
 
 # CuRobo
 from curobo.geom.sphere_fit import SphereFitType, fit_spheres_to_mesh
