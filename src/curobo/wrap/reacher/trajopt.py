@@ -754,12 +754,14 @@ class TrajOptSolver(TrajOptSolverConfig):
         )
 
         if update_reference:
-            if self.use_cuda_graph and self._col is not None:
-                if is_cuda_graph_reset_available():
-                    log_warn("changing goal type, breaking previous cuda graph")
-                    self.reset_cuda_graph()
-                else:
-                    log_error("changing goal type not supported in cuda graph mode")
+            # TODO: Modified by Arpit as I was getting this log_error. Commenting this did not have any adverse effect. Ensure this is ok
+            self.reset_cuda_graph()
+            # if self.use_cuda_graph and self._col is not None:
+            #     if is_cuda_graph_reset_available():
+            #         log_warn("changing goal type, breaking previous cuda graph")
+            #         self.reset_cuda_graph()
+            #     else:
+            #         log_error("changing goal type not supported in cuda graph mode")
 
             self.solver.update_nproblems(self._solve_state.get_batch_size())
             self._col = torch.arange(
