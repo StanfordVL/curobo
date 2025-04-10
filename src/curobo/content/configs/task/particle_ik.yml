@@ -52,7 +52,7 @@ cost:
     weight: 500.0
     classify: False
   eyes_target_cfg:
-    weight: 10000.0
+    weight: 100000.0
 
 
 mppi:
