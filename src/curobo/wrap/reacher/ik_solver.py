@@ -579,6 +579,7 @@ class IKSolver(IKSolverConfig):
         goal_pose: Pose,
         retract_config: Optional[T_BDOF] = None,
         link_poses: Optional[Dict[str, Pose]] = None,
+        eyes_targets: Optional[Dict[str, Pose]] = None,
     ) -> Goal:
         """Update goal buffer with new goal pose and retract configuration.
 
@@ -598,6 +599,7 @@ class IKSolver(IKSolverConfig):
             None,
             retract_config,
             link_poses,
+            eyes_targets,
             self._solve_state,
             self._goal_buffer,
             self.tensor_args,
@@ -776,6 +778,7 @@ class IKSolver(IKSolverConfig):
         use_nn_seed: bool = True,
         newton_iters: Optional[int] = None,
         link_poses: Optional[Dict[str, Pose]] = None,
+        eyes_targets: Optional[torch.Tensor] = None,
     ) -> IKResult:
         """Solve batch of IK problems.
 
@@ -830,6 +833,7 @@ class IKSolver(IKSolverConfig):
             use_nn_seed,
             newton_iters,
             link_poses=link_poses,
+            eyes_targets=eyes_targets,
         )
 
     def solve_batch_goalset(
@@ -1034,6 +1038,7 @@ class IKSolver(IKSolverConfig):
         use_nn_seed: bool = True,
         newton_iters: Optional[int] = None,
         link_poses: Optional[Dict[str, Pose]] = None,
+        eyes_targets: Optional[torch.Tensor] = None,
     ) -> IKResult:
         """Solve IK problem from ReacherSolveState. Called by all solve functions.
 
@@ -1063,7 +1068,7 @@ class IKSolver(IKSolverConfig):
             to check if the problem was solved successfully.
         """
         # create goal buffer:
-        goal_buffer = self._update_goal_buffer(solve_state, goal_pose, retract_config, link_poses)
+        goal_buffer = self._update_goal_buffer(solve_state, goal_pose, retract_config, link_poses, eyes_targets)
         coord_position_seed = self.get_seed(
             num_seeds, goal_buffer.goal_pose, use_nn_seed, seed_config
         )
@@ -1184,6 +1189,7 @@ class IKSolver(IKSolverConfig):
         use_nn_seed: bool = True,
         newton_iters: Optional[int] = None,
         link_poses: Optional[Dict[str, Pose]] = None,
+        eyes_targets: Optional[Dict[str, Pose]] = None,
     ) -> IKResult:
         """Solve IK problem with any solve type."""
         if solve_type == ReacherSolveType.SINGLE:
@@ -1217,6 +1223,7 @@ class IKSolver(IKSolverConfig):
                 use_nn_seed,
                 newton_iters,
                 link_poses,
+                eyes_targets,
             )
         elif solve_type == ReacherSolveType.BATCH_GOALSET:
             return self.solve_batch_goalset(

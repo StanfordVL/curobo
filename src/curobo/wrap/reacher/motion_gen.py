@@ -2810,6 +2810,7 @@ class MotionGen(MotionGenConfig):
         use_nn_seed: bool,
         partial_ik_opt: bool,
         link_poses: Optional[Dict[str, Pose]] = None,
+        eyes_targets: Optional[Dict[str, Pose]] = None,
     ) -> IKResult:
         """Solve inverse kinematics from solve state, used by motion generation planning call.
 
@@ -2838,6 +2839,7 @@ class MotionGen(MotionGenConfig):
             use_nn_seed,
             newton_iters,
             link_poses,
+            eyes_targets,
         )
         return ik_result
 
@@ -3875,6 +3877,7 @@ class MotionGen(MotionGenConfig):
             plan_config.use_nn_ik_seed,
             plan_config.partial_ik_opt,
             link_poses,
+            eyes_targets,
         )
 
         if not plan_config.enable_graph and plan_config.partial_ik_opt:
@@ -4006,7 +4009,6 @@ class MotionGen(MotionGenConfig):
             self._trajopt_goal_config[ik_result.success] = goal_config
 
             goal_config = self._trajopt_goal_config  # batch index == 0
-
             goal = Goal(
                 goal_pose=goal_pose,
                 current_state=start_state,

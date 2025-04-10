@@ -123,6 +123,7 @@ class ReacherSolveState:
         goal_state: Optional[JointState] = None,
         retract_config: Optional[T_BDOF] = None,
         link_poses: Optional[Dict[str, Pose]] = None,
+        eyes_targets: Optional[List[Pose]] = None,
         tensor_args: TensorDeviceType = TensorDeviceType(),
     ) -> Goal:
         """Method to create a goal buffer from goal pose and other problem targets.
@@ -156,9 +157,13 @@ class ReacherSolveState:
         goal_buffer.retract_state = retract_config
         goal_buffer.goal_state = goal_state
         goal_buffer.links_goal_pose = link_poses
+        goal_buffer.eyes_targets = eyes_targets
         if goal_buffer.links_goal_pose is not None:
             for k in goal_buffer.links_goal_pose.keys():
                 goal_buffer.links_goal_pose[k] = goal_buffer.links_goal_pose[k].contiguous()
+        if goal_buffer.eyes_targets is not None:
+            for k in goal_buffer.eyes_targets.keys():
+                goal_buffer.eyes_targets[k] = goal_buffer.eyes_targets[k].contiguous()
         return goal_buffer
 
     def update_goal_buffer(
@@ -167,6 +172,7 @@ class ReacherSolveState:
         goal_state: Optional[JointState] = None,
         retract_config: Optional[T_BDOF] = None,
         link_poses: Optional[List[Pose]] = None,
+        eyes_targets: Optional[List[Pose]] = None,
         current_solve_state: Optional[ReacherSolveState] = None,
         current_goal_buffer: Optional[Goal] = None,
         tensor_args: TensorDeviceType = TensorDeviceType(),
@@ -201,6 +207,7 @@ class ReacherSolveState:
             or (current_goal_buffer.retract_state is None and retract_config is not None)
             or (current_goal_buffer.goal_state is None and goal_state is not None)
             or (current_goal_buffer.links_goal_pose is None and link_poses is not None)
+            or (current_goal_buffer.eyes_targets is None and eyes_targets is not None)
         ):
             update_reference = True
 
@@ -216,7 +223,7 @@ class ReacherSolveState:
         if update_reference:
             current_solve_state = solve_state
             current_goal_buffer = solve_state.create_goal_buffer(
-                goal_pose, goal_state, retract_config, link_poses, tensor_args
+                goal_pose, goal_state, retract_config, link_poses, eyes_targets, tensor_args
             )
         else:
             current_goal_buffer.goal_pose.copy_(goal_pose)
@@ -227,6 +234,9 @@ class ReacherSolveState:
             if link_poses is not None:
                 for k in link_poses.keys():
                     current_goal_buffer.links_goal_pose[k].copy_(link_poses[k].contiguous())
+            if eyes_targets is not None:
+                for k in eyes_targets.keys():
+                    current_goal_buffer.eyes_targets[k].copy_(eyes_targets[k].contiguous())
 
         return current_solve_state, current_goal_buffer, update_reference
 
