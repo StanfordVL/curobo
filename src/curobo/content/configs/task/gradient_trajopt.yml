@@ -76,7 +76,7 @@ cost:
     classify: False
 
   eyes_target_cfg:
-    weight: 1500.0
+    weight: 10000.0
 
 
 lbfgs:

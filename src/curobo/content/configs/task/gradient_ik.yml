@@ -60,6 +60,8 @@ cost:
     weight: 5000.0
     classify: False
 
+  eyes_target_cfg:
+    weight: 100000.0
 
 lbfgs:
   n_iters: 100 #60

@@ -42,14 +42,15 @@ def is_cuda_graph_available():
 
 
 def is_cuda_graph_reset_available():
-    reset_cuda_graph = os.environ.get("CUROBO_TORCH_CUDA_GRAPH_RESET")
-    if reset_cuda_graph is not None:
-        if bool(int(reset_cuda_graph)):
-            if version.parse(torch.version.cuda) >= version.parse("12.0"):
-                return True
-        if not bool(int(reset_cuda_graph)):
-            return False
-    return False
+    # reset_cuda_graph = os.environ.get("CUROBO_TORCH_CUDA_GRAPH_RESET")
+    # if reset_cuda_graph is not None:
+    #     if bool(int(reset_cuda_graph)):
+    #         if version.parse(torch.version.cuda) >= version.parse("12.0"):
+    #             return True
+    #     if not bool(int(reset_cuda_graph)):
+    #         return False
+    # return False
+    return version.parse(torch.version.cuda) >= version.parse("12.0")
 
 
 def is_torch_compile_available():
