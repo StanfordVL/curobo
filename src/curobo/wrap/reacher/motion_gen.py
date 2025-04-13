@@ -3992,14 +3992,21 @@ class MotionGen(MotionGenConfig):
                     return result
 
             else:
-                result.success[:] = False
-                result.success = result.success[:, 0]
-                result.status = MotionGenStatus.GRAPH_FAIL
-                if not graph_result.valid_query:
-                    result.valid_query = False
-                    if self.store_debug_in_result:
-                        result.debug_info = {"graph_debug": graph_result.debug_info}
-                    return result
+                # This fixes an issue. It is done because other wise, result.success (which could have had true values from IK solver) will 
+                # now have all false which will give a shape error here: self._trajopt_goal_config[ik_result.success] = goal_config
+                # We also don't want to return here because graph planner is only used for seeding the trajopt solver. So, if it fails, that's ok. Ignore the 
+                # graph seed and ask trajopt to start from its own seed
+                if plan_config.enable_opt:
+                    pass
+                else:
+                    result.success[:] = False
+                    result.success = result.success[:, 0]
+                    result.status = MotionGenStatus.GRAPH_FAIL
+                    if not graph_result.valid_query:
+                        result.valid_query = False
+                        if self.store_debug_in_result:
+                            result.debug_info = {"graph_debug": graph_result.debug_info}
+                        return result
 
         if plan_config.enable_opt:
             # get goal configs based on ik success:
