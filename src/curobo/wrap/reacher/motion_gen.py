@@ -1155,6 +1155,9 @@ class MotionGenResult:
     #: stores the index of the goal pose reached when planning for a goalset.
     goalset_index: Optional[torch.Tensor] = None
 
+    # feasible: Added by Arpit
+    feasible: Optional[T_BValue_float] = None
+
     def clone(self):
         """Clone the current result."""
         m = MotionGenResult(
@@ -1182,6 +1185,7 @@ class MotionGenResult:
             ),
             interpolation_dt=self.interpolation_dt,
             goalset_index=self.goalset_index.clone() if self.goalset_index is not None else None,
+            feasible=self.feasible.clone() if self.feasible is not None else None,
         )
         return m
 
@@ -1224,6 +1228,9 @@ class MotionGenResult:
         # self.graph_plan = self._check_none_and_copy_idx(
         #    self.graph_plan, source_result.graph_plan, idx
         # )
+        self.feasible = self._check_none_and_copy_idx(
+             self.feasible, source_result.feasible, idx
+         )
 
         idx_list = idx.cpu().tolist()
         if source_result.path_buffer_last_tstep is not None:
@@ -3203,6 +3210,7 @@ class MotionGen(MotionGenConfig):
         best_result = None
 
         for n in range(plan_config.max_attempts):
+            print("mp attempt: ", n)
             result = self._plan_from_solve_state_batch(
                 solve_state,
                 start_state,
@@ -3895,6 +3903,7 @@ class MotionGen(MotionGenConfig):
         )
 
         ik_success = torch.count_nonzero(ik_result.success)
+        print("ik_success", ik_success)
         if ik_success == 0:
             result.status = MotionGenStatus.IK_FAIL
             result.success = result.success[:, 0]
@@ -3927,6 +3936,7 @@ class MotionGen(MotionGenConfig):
             )
             graph_result = self.graph_search(start_config, goal_config, interpolation_steps)
             graph_success = torch.count_nonzero(graph_result.success).item()
+            print("graph_success: ", graph_success)
 
             result.graph_time = graph_result.solve_time
             result.solve_time += graph_result.solve_time
@@ -4022,6 +4032,7 @@ class MotionGen(MotionGenConfig):
                 links_goal_pose=link_poses,
                 eyes_targets=eyes_targets,
             )
+            
             # generate seeds:
             if trajopt_seed_traj is None or (
                 plan_config.enable_graph and graph_success < solve_state.batch_size
@@ -4051,7 +4062,7 @@ class MotionGen(MotionGenConfig):
                 )
                 if trajopt_seed_traj is not None:
                     trajopt_seed_traj = trajopt_seed_traj.transpose(0, 1).contiguous()
-
+                
                 # create seeds here:
                 trajopt_seed_traj = self.trajopt_solver.get_seed_set(
                     seed_goal,
@@ -4077,6 +4088,7 @@ class MotionGen(MotionGenConfig):
                 newton_iters=trajopt_newton_iters,
                 return_all_solutions=plan_config.enable_finetune_trajopt,
             )
+            print("traj_result", traj_result.success)
 
             # output of traj result will have 1 solution per batch
 
@@ -4089,6 +4101,7 @@ class MotionGen(MotionGenConfig):
             # run finetune
             if plan_config.enable_finetune_trajopt:
                 if torch.count_nonzero(traj_result.success) > 0:
+                    print("starting finetuning")
                     with profiler.record_function("motion_gen/finetune_trajopt"):
                         seed_traj = traj_result.raw_action.clone()  # solution.position.clone()
                         seed_traj = seed_traj.contiguous()
@@ -4151,6 +4164,7 @@ class MotionGen(MotionGenConfig):
             result.path_buffer_last_tstep = traj_result.path_buffer_last_tstep
             result.optimized_plan = traj_result.solution
             result.optimized_dt = traj_result.optimized_dt
+            result.feasible = traj_result.feasible
             if torch.count_nonzero(traj_result.success) == 0:
                 result.status = MotionGenStatus.TRAJOPT_FAIL
                 # result.success[:] = False

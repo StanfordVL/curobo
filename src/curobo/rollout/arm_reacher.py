@@ -240,7 +240,7 @@ class ArmReacher(ArmBase, ArmReacherConfig):
         if self.convergence_cfg.link_pose_cfg is not None:
             for i in self.kinematics.link_names:
                 if i != self.kinematics.ee_link:
-                    self._link_pose_convergence[i] = PoseCost(self.convergence_cfg.link_pose_cfg)
+                    self._link_pose_convergence[i] = PoseCost(copy.deepcopy(self.convergence_cfg.link_pose_cfg))
         if self.convergence_cfg.cspace_cfg is not None:
             self.convergence_cfg.cspace_cfg.dof = self.d_action
             self.cspace_convergence = DistCost(self.convergence_cfg.cspace_cfg)

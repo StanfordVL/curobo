@@ -571,6 +571,7 @@ class TrajOptResult(Sequence):
     raw_action: Optional[torch.Tensor] = None
     goalset_index: Optional[torch.Tensor] = None
     optimized_seeds: Optional[torch.Tensor] = None
+    feasible: Optional[T_BValue_bool] = None
 
     def __getitem__(self, idx: int) -> TrajOptResult:
         """Get item at index.
@@ -1402,6 +1403,11 @@ class TrajOptSolver(TrajOptSolverConfig):
                 raw_action=result.raw_action,
                 goalset_index=result.metrics.goalset_index,
                 optimized_seeds=result.raw_action,
+                feasible=(
+                     result.metrics.feasible[..., -1]
+                     if result.metrics.feasible is not None
+                     else None
+                 ),
             )
         else:
             # get path length:
@@ -1498,6 +1504,11 @@ class TrajOptSolver(TrajOptSolverConfig):
                 raw_action=best_raw_action,
                 goalset_index=goalset_index,
                 optimized_seeds=result.raw_action,
+                feasible=(
+                     result.metrics.feasible[..., -1]
+                     if result.metrics.feasible is not None
+                     else None
+                ),
             )
         return traj_result
 
