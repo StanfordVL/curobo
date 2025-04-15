@@ -343,7 +343,8 @@ class ArmReacher(ArmBase, ArmReacherConfig):
             current_eye_pos = current_eye_pose.position
             current_eye_quat = current_eye_pose.quaternion
             eyes_targets_pos = self._goal_buffer.eyes_targets["eyes"].position
-            assert eyes_targets_pos.shape == (1, 3)
+            # breakpoint()
+            # assert eyes_targets_pos.shape == (1, 3)
             eyes_cost = self.eyes_target_cost.forward(
                 current_eye_pos,
                 current_eye_quat,

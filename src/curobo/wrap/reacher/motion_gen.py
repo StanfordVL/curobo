@@ -4088,7 +4088,7 @@ class MotionGen(MotionGenConfig):
                 newton_iters=trajopt_newton_iters,
                 return_all_solutions=plan_config.enable_finetune_trajopt,
             )
-            print("traj_result", traj_result.success)
+            # print("traj_result", traj_result.success)
 
             # output of traj result will have 1 solution per batch
 
@@ -4101,7 +4101,7 @@ class MotionGen(MotionGenConfig):
             # run finetune
             if plan_config.enable_finetune_trajopt:
                 if torch.count_nonzero(traj_result.success) > 0:
-                    print("starting finetuning")
+                    # print("starting finetuning")
                     with profiler.record_function("motion_gen/finetune_trajopt"):
                         seed_traj = traj_result.raw_action.clone()  # solution.position.clone()
                         seed_traj = seed_traj.contiguous()
@@ -4121,6 +4121,7 @@ class MotionGen(MotionGenConfig):
                             trajopt_instance=self.finetune_trajopt_solver,
                             num_seeds_override=solve_state.num_trajopt_seeds,
                         )
+                        # print("Finetune traj_result", traj_result.success)
 
                     result.finetune_time = traj_result.solve_time
 
