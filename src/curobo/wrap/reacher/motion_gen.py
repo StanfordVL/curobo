@@ -83,6 +83,7 @@ from curobo.wrap.reacher.ik_solver import IKResult, IKSolver, IKSolverConfig
 from curobo.wrap.reacher.trajopt import TrajOptResult, TrajOptSolver, TrajOptSolverConfig
 from curobo.wrap.reacher.types import ReacherSolveState, ReacherSolveType
 
+import omnigibson.utils.transform_utils as T
 
 @dataclass
 class MotionGenConfig:
@@ -1962,6 +1963,7 @@ class MotionGen(MotionGenConfig):
             ).repeat_seeds(batch)
             state = self.rollout_fn.compute_kinematics(start_state)
             link_poses = state.link_pose
+            del link_poses[self.rollout_fn.kinematics.ee_link]
 
             if n_goalset == -1:
                 retract_pose = Pose(state.ee_pos_seq, quaternion=state.ee_quat_seq)
@@ -1981,6 +1983,10 @@ class MotionGen(MotionGenConfig):
                             link_poses=link_poses,
                         )
                     else:
+                        eyes_targets = link_poses["eyes"].clone()
+                        # Set the eyes targets to be one meter away from the eyes link in the minus z direction
+                        # (i.e. the eyes are already looking at the target)
+                        eyes_targets.position += T.quat2mat(eyes_targets.quaternion[0][[1, 2, 3, 0]]) @ torch.tensor([0, 0, -1.0]).cuda()
                         self.plan_batch(
                             start_state,
                             retract_pose,
@@ -1991,7 +1997,7 @@ class MotionGen(MotionGenConfig):
                                 enable_graph_attempt=None if not enable_graph else 20,
                             ),
                             link_poses=link_poses,
-                            eyes_targets={"eyes": retract_pose},
+                            eyes_targets={"eyes": eyes_targets},
                         )
             else:
                 retract_pose = Pose(
