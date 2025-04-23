@@ -1847,6 +1847,8 @@ class MotionGen(MotionGenConfig):
         n_goalset: int = -1,
         warmup_joint_index: int = 0,
         warmup_joint_delta: float = 0.1,
+        ik_only=False,
+        use_eyes_targets=True,
     ):
         """Warmup planning methods for motion generation.
 
@@ -1987,18 +1989,32 @@ class MotionGen(MotionGenConfig):
                         # Set the eyes targets to be one meter away from the eyes link in the minus z direction
                         # (i.e. the eyes are already looking at the target)
                         eyes_targets.position += T.quat2mat(eyes_targets.quaternion[0][[1, 2, 3, 0]]) @ torch.tensor([0, 0, -1.0]).cuda()
-                        self.plan_batch(
-                            start_state,
-                            retract_pose,
-                            MotionGenPlanConfig(
-                                max_attempts=10,
-                                enable_finetune_trajopt=True,
-                                enable_graph=enable_graph,
-                                enable_graph_attempt=None if not enable_graph else 20,
-                            ),
-                            link_poses=link_poses,
-                            eyes_targets={"eyes": eyes_targets},
+                        plan_config = MotionGenPlanConfig(
+                            max_attempts=10,
+                            enable_finetune_trajopt=True,
+                            enable_graph=enable_graph,
+                            enable_graph_attempt=None if not enable_graph else 20,
                         )
+                        if ik_only:
+                            solve_state = self._get_solve_state(
+                                ReacherSolveType.BATCH, plan_config, retract_pose, start_state
+                            )
+                            self._solve_ik_from_solve_state(
+                                retract_pose,
+                                solve_state,
+                                start_state,
+                                plan_config.use_nn_ik_seed,
+                                plan_config.partial_ik_opt,
+                                link_poses=link_poses,
+                                eyes_targets={"eyes": eyes_targets} if use_eyes_targets else None,
+                            )
+                        else:
+                            self.plan_batch(
+                                start_state,
+                                retract_pose,
+                                link_poses=link_poses,
+                                eyes_targets={"eyes": eyes_targets} if use_eyes_targets else None,
+                            )
             else:
                 retract_pose = Pose(
                     state.ee_pos_seq.view(batch, 1, 3).repeat(1, n_goalset, 1).contiguous(),
