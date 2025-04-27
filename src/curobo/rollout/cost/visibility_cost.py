@@ -10,6 +10,7 @@
 #
 # Third Party
 import torch
+import math
 
 # CuRobo
 from curobo.util.torch_utils import get_torch_jit_decorator
@@ -17,7 +18,7 @@ from curobo.util.torch_utils import get_torch_jit_decorator
 # Local Folder
 from .zero_cost import ZeroCost
 
-@get_torch_jit_decorator()
+@torch.compile
 def quat2mat(quaternion):
     """
     Convert quaternions into rotation matrices.
@@ -59,6 +60,40 @@ def quat2mat(quaternion):
 
     return rmat
 
+@torch.compile
+def copysign(a, b):
+    # type: (float, torch.Tensor) -> torch.Tensor
+    a = torch.tensor(a, device=b.device, dtype=torch.float).repeat(b.shape[0])
+    return torch.abs(a) * torch.sign(b)
+
+@torch.compile
+def quat2euler(q):
+    single_dim = q.dim() == 1
+
+    if single_dim:
+        q = q.unsqueeze(0)
+
+    qx, qy, qz, qw = 0, 1, 2, 3
+    # roll (x-axis rotation)
+    sinr_cosp = 2.0 * (q[:, qw] * q[:, qx] + q[:, qy] * q[:, qz])
+    cosr_cosp = q[:, qw] * q[:, qw] - q[:, qx] * q[:, qx] - q[:, qy] * q[:, qy] + q[:, qz] * q[:, qz]
+    roll = torch.atan2(sinr_cosp, cosr_cosp)
+    # pitch (y-axis rotation)
+    sinp = 2.0 * (q[:, qw] * q[:, qy] - q[:, qz] * q[:, qx])
+    pitch = torch.where(torch.abs(sinp) >= 1, copysign(math.pi / 2.0, sinp), torch.asin(sinp))
+    # yaw (z-axis rotation)
+    siny_cosp = 2.0 * (q[:, qw] * q[:, qz] + q[:, qx] * q[:, qy])
+    cosy_cosp = q[:, qw] * q[:, qw] + q[:, qx] * q[:, qx] - q[:, qy] * q[:, qy] - q[:, qz] * q[:, qz]
+    yaw = torch.atan2(siny_cosp, cosy_cosp)
+
+    euler = torch.stack([roll, pitch, yaw], dim=-1) % (2 * math.pi)
+    euler = torch.where(euler > math.pi, euler - 2 * math.pi, euler)
+
+    if single_dim:
+        euler = euler.squeeze(0)
+
+    return euler
+
 class VisibilityCost(ZeroCost):
     """Visibility Cost"""
 
@@ -85,5 +120,20 @@ class VisibilityCost(ZeroCost):
         cosine_similarity = torch.sum(desired_unit_vector * current_unit_vector, dim=-1)
         # cosine distance is [0, 2]
         cosine_distance = 1.0 - cosine_similarity
-        sqrt_cosine_distance = torch.sqrt(cosine_distance).unsqueeze(-1)
+        cosine_distance[cosine_distance.isnan()] = 0.0
+        cosine_distance.clamp_(min=0.0, max=2.0)
+
+        orig_shape = current_eye_quat_xyzw.shape
+        flatten_current_eye_quat = current_eye_quat_xyzw.view(-1, 4)
+        flatten_current_eye_euler = quat2euler(flatten_current_eye_quat)
+        current_eye_euler = flatten_current_eye_euler.view(*orig_shape[:-1], 3)
+        roll_angle = current_eye_euler[..., 1]
+        roll_cosine_similarity = torch.cos(roll_angle)
+        roll_cosine_distance = 1.0 - roll_cosine_similarity
+        roll_cosine_distance[roll_cosine_distance.isnan()] = 0.0
+        roll_cosine_distance.clamp_(min=0.0, max=2.0)
+
+        avg_cosine_distance = (cosine_distance + roll_cosine_distance) / 2.0
+
+        sqrt_cosine_distance = torch.sqrt(avg_cosine_distance).unsqueeze(-1)
         return super().forward(sqrt_cosine_distance, g_dist)
