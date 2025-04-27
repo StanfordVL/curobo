@@ -3232,7 +3232,7 @@ class MotionGen(MotionGenConfig):
         best_result = None
 
         for n in range(plan_config.max_attempts):
-            print("mp attempt: ", n)
+            # print("mp attempt: ", n)
             result = self._plan_from_solve_state_batch(
                 solve_state,
                 start_state,
@@ -3925,7 +3925,7 @@ class MotionGen(MotionGenConfig):
         )
 
         ik_success = torch.count_nonzero(ik_result.success)
-        print("ik_success", ik_success)
+        # print("ik_success", ik_success)
         if ik_success == 0:
             result.status = MotionGenStatus.IK_FAIL
             result.success = result.success[:, 0]
@@ -3959,6 +3959,13 @@ class MotionGen(MotionGenConfig):
             graph_result = self.graph_search(start_config, goal_config, interpolation_steps)
             graph_success = torch.count_nonzero(graph_result.success).item()
             print("graph_success: ", graph_success)
+
+            # If start or end state is in collision, just return
+            if graph_result.debug_info == "Start or End state in collision":
+                result.status = MotionGenStatus.INVALID_QUERY
+                result.success = graph_result.success
+                result.debug_info = graph_result.debug_info
+                return result
 
             result.graph_time = graph_result.solve_time
             result.solve_time += graph_result.solve_time
