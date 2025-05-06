@@ -20,8 +20,8 @@ import torch
 
 # This is needed to get deterministic results from networkx.
 # Note: it has to be set in global space.
-np.random.seed(2)
-random.seed(2)
+# np.random.seed(2)
+# random.seed(2)
 
 
 class NetworkxGraph(object):
