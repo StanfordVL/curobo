@@ -1211,13 +1211,19 @@ class MotionGenResult:
             self.interpolated_plan, source_result.interpolated_plan, idx
         )
 
+        # Fixes shape mismatch error
+        if len(self.position_error.shape) == 2:
+            self.position_error = self.position_error.squeeze(-1)
         self.position_error = self._check_none_and_copy_idx(
             self.position_error, source_result.position_error, idx
         )
 
+        if len(self.rotation_error.shape) == 2:
+            self.rotation_error = self.rotation_error.squeeze(-1)
         self.rotation_error = self._check_none_and_copy_idx(
             self.rotation_error, source_result.rotation_error, idx
         )
+        
         self.cspace_error = self._check_none_and_copy_idx(
             self.cspace_error, source_result.cspace_error, idx
         )
@@ -3251,13 +3257,17 @@ class MotionGen(MotionGenConfig):
 
             # if not all have succeeded, store the successful ones and re attempt:
             # TODO: update stored based on error
-            if best_result is None:
-                best_result = result.clone()
-            else:
-                # get success idx:
-                idx = torch.nonzero(result.success).reshape(-1)
-                if len(idx) > 0:
-                    best_result.copy_idx(idx, result)
+            try:
+                if best_result is None:
+                    best_result = result.clone()
+                else:
+                    # get success idx:
+                    idx = torch.nonzero(result.success).reshape(-1)
+                    if len(idx) > 0:
+                        best_result.copy_idx(idx, result)
+            except Exception as e:
+                print(e)
+                breakpoint()
 
             if (
                 result.status == MotionGenStatus.IK_FAIL and plan_config.ik_fail_return is not None
@@ -3899,6 +3909,7 @@ class MotionGen(MotionGenConfig):
         trajopt_newton_iters = None
         graph_success = 0
 
+        # print("== IK solver start ==")
         # plan ik:
         ik_result = self._solve_ik_from_solve_state(
             goal_pose,
@@ -3909,6 +3920,7 @@ class MotionGen(MotionGenConfig):
             link_poses,
             eyes_targets,
         )
+        # print("== IK solver end ==")
 
         if not plan_config.enable_graph and plan_config.partial_ik_opt:
             ik_result.success[:] = True
@@ -3945,6 +3957,7 @@ class MotionGen(MotionGenConfig):
         #    self.graph_planner.interpolation_steps = self.trajopt_solver.traj_tsteps
         #    self.graph_planner.interpolation_type = InterpolateType.LINEAR
         goal_config = ik_result.solution[ik_result.success].view(-1, self.ik_solver.dof)
+        # breakpoint()
 
         # get shortest path
         if plan_config.enable_graph:
@@ -4110,6 +4123,7 @@ class MotionGen(MotionGenConfig):
                 og_value = self.trajopt_solver.interpolation_type
                 self.trajopt_solver.interpolation_type = InterpolateType.LINEAR_CUDA
 
+            # print("== TrajOpt solver start ==")
             traj_result = self._solve_trajopt_from_solve_state(
                 goal,
                 solve_state,
@@ -4117,6 +4131,7 @@ class MotionGen(MotionGenConfig):
                 newton_iters=trajopt_newton_iters,
                 return_all_solutions=plan_config.enable_finetune_trajopt,
             )
+            # print("== TrajOpt solver end ==")
             # print("traj_result", traj_result.success)
 
             # output of traj result will have 1 solution per batch
@@ -4143,6 +4158,7 @@ class MotionGen(MotionGenConfig):
                         )
                         self.finetune_trajopt_solver.update_solver_dt(scaled_dt.item())
 
+                        # print("== Finetune TrajOpt solver start ==")
                         traj_result = self._solve_trajopt_from_solve_state(
                             goal,
                             solve_state,
@@ -4150,6 +4166,7 @@ class MotionGen(MotionGenConfig):
                             trajopt_instance=self.finetune_trajopt_solver,
                             num_seeds_override=solve_state.num_trajopt_seeds,
                         )
+                        # print("== Finetune TrajOpt solver end ==")
                         # print("Finetune traj_result", traj_result.success)
 
                     result.finetune_time = traj_result.solve_time
@@ -4200,6 +4217,13 @@ class MotionGen(MotionGenConfig):
                 # result.success[:] = False
             if self.store_debug_in_result:
                 result.debug_info = {"trajopt_result": traj_result}
+        
+        # # Verify if the IK solution and the MP final solution are the same
+        # successes = torch.where(result.success)
+        # for idx in successes[0]:
+        #     print("result final joint pos: ", result.optimized_plan.position[idx][-1])
+        #     print("ik result joint pos: ", ik_result.solution[idx][0])
+        
         return result
 
     def plan(

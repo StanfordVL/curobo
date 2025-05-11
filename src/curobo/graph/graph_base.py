@@ -267,11 +267,11 @@ class GraphPlanBase(GraphConfig):
         x_samples = x_samples[mask]
         return x_samples
 
-    def mask_samples(self, x_samples):  # call feasibility here:
+    def mask_samples(self, x_samples, debug=False):  # call feasibility here:
         if self.use_cuda_graph_mask_samples and x_samples.shape[0] <= self.max_cg_buffer:
             return self._mask_samples_cuda_graph(x_samples)
         else:
-            return self._mask_samples(x_samples)
+            return self._mask_samples(x_samples, debug=debug)
 
     @profiler.record_function("geometric_planner/cg_mask_samples")
     def _mask_samples_cuda_graph(self, x_samples):
@@ -293,7 +293,7 @@ class GraphPlanBase(GraphConfig):
         return mask
 
     @profiler.record_function("geometric_planner/mask_samples")
-    def _mask_samples(self, x_samples):
+    def _mask_samples(self, x_samples, debug=False):
         d = []
         if self.safety_rollout_fn.cuda_graph_instance:
             log_error("Cuda graph is using this rollout instance.")
@@ -308,7 +308,7 @@ class GraphPlanBase(GraphConfig):
                 d.append(metrics.feasible)
         else:
             metrics = self.safety_rollout_fn.rollout_constraint(
-                x_samples.unsqueeze(1), use_batch_env=False
+                x_samples.unsqueeze(1), use_batch_env=False, debug=debug
             )
             d.append(metrics.feasible)
         mask = torch.cat(d).squeeze()

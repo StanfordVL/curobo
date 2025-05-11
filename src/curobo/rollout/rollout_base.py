@@ -561,7 +561,7 @@ class RolloutBase:
     # how to map act_seq to state?
     # rollout for feasibility?
     @abstractmethod
-    def rollout_constraint(self, act_seq: torch.Tensor) -> RolloutMetrics:
+    def rollout_constraint(self, act_seq: torch.Tensor, debug: bool) -> RolloutMetrics:
         # get state by rolling out
 
         # get feasibility:

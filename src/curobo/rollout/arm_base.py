@@ -382,6 +382,7 @@ class ArmBase(RolloutBase, ArmBaseConfig):
         state: KinematicModelState,
         out_metrics: Optional[RolloutMetrics] = None,
         use_batch_env: bool = True,
+        debug: bool = False,
     ) -> RolloutMetrics:
         # setup constraint terms:
 
@@ -411,6 +412,8 @@ class ArmBase(RolloutBase, ArmBaseConfig):
             constraint_list.append(self_constraint)
         constraint = cat_sum(constraint_list)
 
+        # if debug:
+        #     breakpoint()
         feasible = constraint == 0.0
 
         if out_metrics is None:
@@ -544,12 +547,12 @@ class ArmBase(RolloutBase, ArmBaseConfig):
         return state
 
     def rollout_constraint(
-        self, act_seq: torch.Tensor, use_batch_env: bool = True
+        self, act_seq: torch.Tensor, use_batch_env: bool = True, debug: bool = False
     ) -> RolloutMetrics:
         if self.cuda_graph_instance:
             log_error("Cuda graph is using this instance, please break the graph before using this")
         state = self.dynamics_model.forward(self.start_state, act_seq)
-        metrics = self.constraint_fn(state, use_batch_env=use_batch_env)
+        metrics = self.constraint_fn(state, use_batch_env=use_batch_env, debug=debug)
         return metrics
 
     def rollout_constraint_cuda_graph(self, act_seq: torch.Tensor, use_batch_env: bool = True):
