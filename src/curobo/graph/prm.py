@@ -124,10 +124,9 @@ class PRMStar(GraphPlanBase):
         node_set = node_set.view(b * 2, dof)
         # check if start and goal are in freespace:
         mask = self.mask_samples(node_set)
-        # print("mask: ", mask)
+
         if mask.all() != True:
             self.mask_samples(node_set, debug=True)
-            # breakpoint()
             # log_warn("Start or End state in collision", exc_info=False)
             # TODO: For goal states: Since each goal state is slightly different, maybe only return invalid query if all goal states are False!
             even_indices = torch.arange(0, 2*b, 2)

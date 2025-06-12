@@ -62,7 +62,7 @@ cost:
     null_space_weight: [0.00]
 
   primitive_collision_cfg:
-    weight: 5000.0 # originally 5000.0
+    weight: 5000.0
     use_sweep: True
     classify: False
     sweep_steps: 4
