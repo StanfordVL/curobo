@@ -68,7 +68,7 @@ class UsdKinematicsParser(KinematicsParser):
             tensor_args: Device and floating point precision for tensors.
             extra_links: Additional links to add to the robot kinematics structure.
         """
-
+        
         # create a usd stage
         self._flip_joints = flip_joints
         self._flip_joint_limits = flip_joint_limits
@@ -116,6 +116,7 @@ class UsdKinematicsParser(KinematicsParser):
             return link_params
         joint_limits = None
         joint_axis = None
+        joint_offset = [1.0, 0.0]
         if base:
             parent_link_name = None
             joint_transform = np.eye(4)
@@ -138,6 +139,11 @@ class UsdKinematicsParser(KinematicsParser):
                 )
                 if joint_name in self._flip_joints.keys():
                     joint_axis = self._flip_joints[joint_name]
+                if joint_name in self._flip_joint_limits:
+                    # joint_limits = np.ravel(
+                    #     [-1.0 * j_prim.GetUpperLimitAttr().Get(), j_prim.GetLowerLimitAttr().Get()]
+                    # )
+                    joint_offset = [-1.0, 0.0]
                 if joint_axis == "X":
                     joint_type = JointType.X_ROT
                 elif joint_axis == "Y":
@@ -157,9 +163,10 @@ class UsdKinematicsParser(KinematicsParser):
                 if joint_name in self._flip_joints.keys():
                     joint_axis = self._flip_joints[joint_name]
                 if joint_name in self._flip_joint_limits:
-                    joint_limits = np.ravel(
-                        [-1.0 * j_prim.GetUpperLimitAttr().Get(), j_prim.GetLowerLimitAttr().Get()]
-                    )
+                    # joint_limits = np.ravel(
+                    #     [-1.0 * j_prim.GetUpperLimitAttr().Get(), j_prim.GetLowerLimitAttr().Get()]
+                    # )
+                    joint_offset = [-1.0, 0.0]
                 if joint_axis == "X":
                     joint_type = JointType.X_PRISM
                 elif joint_axis == "Y":
@@ -170,6 +177,7 @@ class UsdKinematicsParser(KinematicsParser):
                     log_error("Joint axis not supported" + str(joint_axis))
             else:
                 log_error("Joint type not supported")
+
         link_params = LinkParams(
             link_name=link_name,
             joint_name=joint_name,
@@ -177,6 +185,7 @@ class UsdKinematicsParser(KinematicsParser):
             fixed_transform=joint_transform,
             parent_link_name=parent_link_name,
             joint_limits=joint_limits,
+            joint_offset=joint_offset,
         )
         return link_params
 

@@ -1390,9 +1390,14 @@ class MotionGenResult:
                 current_tensor = source_tensor.clone()
             else:
                 if isinstance(current_tensor, torch.Tensor) and isinstance(
-                    source_tensor, torch.Tensor
-                ):
-                    current_tensor[idx] = source_tensor[idx]
+                    source_tensor, torch.Tensor):
+                    assert current_tensor.shape == source_tensor.shape
+                    # If tensor is scalar, copy the value.
+                    if len(current_tensor.shape) == 0:
+                        current_tensor[()] = source_tensor
+                    # Otherwise, copy the value at index.
+                    else:
+                        current_tensor[idx] = source_tensor[idx]
                 elif isinstance(current_tensor, JointState) and isinstance(
                     source_tensor, JointState
                 ):
@@ -2329,11 +2334,15 @@ class MotionGen(MotionGenConfig):
         joint_state: JointState,
         object_names: List[str],
         surface_sphere_radius: float = 0.001,
+        ee_pose: Optional[Pose] = None,
         link_name: str = "attached_object",
         sphere_fit_type: SphereFitType = SphereFitType.VOXEL_VOLUME_SAMPLE_SURFACE,
         voxelize_method: str = "ray",
+        pitch_scale: float = 1.0,
+        merge_meshes: bool = False,
         world_objects_pose_offset: Optional[Pose] = None,
         remove_obstacles_from_world_config: bool = False,
+        scale: float = 1.0,
     ) -> bool:
         """Attach an object or objects from world to a robot's link.
 
@@ -2345,6 +2354,8 @@ class MotionGen(MotionGenConfig):
             object_names: Names of objects in the world to attach to the robot.
             surface_sphere_radius: Radius (in meters) to use for points sampled on surface of the
                 object. A smaller radius will allow for generating motions very close to obstacles.
+            ee_pose: End-effector pose to attach the objects to. If None, the current end-effector
+                pose is used.
             link_name: Name of the link (frame) to attach the objects to. The assumption is that
                 this link does not have any geometry and all spheres of this link represent
                 attached objects.
@@ -2355,6 +2366,8 @@ class MotionGen(MotionGenConfig):
                 these points. This should be used for most cases.
             voxelize_method: Method to use for voxelization, passed to
                 :py:func:`trimesh.voxel.creation.voxelize`.
+            pitch_scale: Scale to apply to the scale of the voxel grid.
+            merge_meshes: Whether to merge all the meshes before voxelization.
             world_objects_pose_offset: Offset to apply to the object poses before attaching to the
                 robot. This is useful when attaching an object that's in contact with the world.
                 The offset is applied in the world frame before attaching to the robot.
@@ -2363,11 +2376,13 @@ class MotionGen(MotionGenConfig):
                 to the robot, it's disabled in the world collision checker. This flag when enabled,
                 also removes the object from world cache. For most cases, this should be set to
                 False.
+            scale: Scale factor to apply to the object before attaching to the robot.
         """
 
         log_info("MG: Attach objects to robot")
         kin_state = self.compute_kinematics(joint_state)
-        ee_pose = kin_state.ee_pose  # w_T_ee
+        if ee_pose is None:
+            ee_pose = kin_state.ee_pose  # w_T_ee
         if world_objects_pose_offset is not None:
             # add offset from ee:
             ee_pose = world_objects_pose_offset.inverse().multiply(ee_pose)
@@ -2376,40 +2391,66 @@ class MotionGen(MotionGenConfig):
             # ee_T_w
         ee_pose = ee_pose.inverse()  # ee_T_w to multiply all objects later
         max_spheres = self.robot_cfg.kinematics.kinematics_config.get_number_of_spheres(link_name)
-        n_spheres = int(max_spheres / len(object_names))
         sphere_tensor = torch.zeros((max_spheres, 4))
         sphere_tensor[:, 3] = -10.0
-        sph_list = []
-        if n_spheres == 0:
-            log_warn(
-                "MG: No spheres found, max_spheres: "
-                + str(max_spheres)
-                + " n_objects: "
-                + str(len(object_names))
-            )
-            return False
-        for i, x in enumerate(object_names):
-            obs = self.world_model.get_obstacle(x)
-            if obs is None:
-                log_error(
-                    "Object not found in world. Object name: "
-                    + x
-                    + " Name of objects in world: "
-                    + " ".join([i.name for i in self.world_model.objects])
-                )
-            sph = obs.get_bounding_spheres(
-                n_spheres,
+
+        if merge_meshes:
+            merged_mesh = WorldConfig.create_merged_mesh_world(
+                WorldConfig(mesh=[self.world_model.get_obstacle(x) for x in object_names]),
+                process_color=False).mesh[0]
+            # Center the merged mesh so that later the scaling (shrinking) is applied in the object frame (around the center of mass)
+            center_mass = merged_mesh.get_trimesh_mesh().center_mass
+            merged_mesh.pose[:3] = center_mass
+            merged_mesh.vertices -= center_mass
+            sph = merged_mesh.get_bounding_spheres(
+                max_spheres,
                 surface_sphere_radius,
                 pre_transform_pose=ee_pose,
+                scale=scale,
                 tensor_args=self.tensor_args,
                 fit_type=sphere_fit_type,
                 voxelize_method=voxelize_method,
+                pitch_scale=pitch_scale,
             )
-            sph_list += [s.position + [s.radius] for s in sph]
+            sph_list = [s.position + [s.radius] for s in sph]
+        else:
+            n_spheres = int(max_spheres / len(object_names))
+            sph_list = []
+            if n_spheres == 0:
+                log_warn(
+                    "MG: No spheres found, max_spheres: "
+                    + str(max_spheres)
+                    + " n_objects: "
+                    + str(len(object_names))
+                )
+                return False
+            for i, x in enumerate(object_names):
+                obs = self.world_model.get_obstacle(x)
+                if obs is None:
+                    log_error(
+                        "Object not found in world. Object name: "
+                        + x
+                        + " Name of objects in world: "
+                        + " ".join([i.name for i in self.world_model.objects])
+                    )
+                sph = obs.get_bounding_spheres(
+                    n_spheres,
+                    surface_sphere_radius,
+                    pre_transform_pose=ee_pose,
+                    scale=scale,
+                    tensor_args=self.tensor_args,
+                    fit_type=sphere_fit_type,
+                    voxelize_method=voxelize_method,
+                    pitch_scale=pitch_scale,
+                )
+                sph_list += [s.position + [s.radius] for s in sph]
 
+        # Disable obstacles in world collision checker
+        for x in object_names:
             self.world_coll_checker.enable_obstacle(enable=False, name=x)
             if remove_obstacles_from_world_config:
                 self.world_model.remove_obstacle(x)
+
         log_info("MG: Computed spheres for attach objects to robot")
 
         spheres = self.tensor_args.to_device(torch.as_tensor(sph_list))
@@ -2609,12 +2650,27 @@ class MotionGen(MotionGenConfig):
             world_objects_pose_offset=world_objects_pose_offset,
         )
 
-    def detach_object_from_robot(self, link_name: str = "attached_object") -> None:
+    def detach_object_from_robot(
+        self,
+        object_names: List[str],
+        link_name: str = "attached_object",
+    ) -> None:
         """Detach object from robot's link.
 
         Args:
             link_name: Name of the link.
         """
+        for i, x in enumerate(object_names):
+            obs = self.world_model.get_obstacle(x)
+            if obs is None:
+                log_error(
+                    "Object not found in world. Object name: "
+                    + x
+                    + " Name of objects in world: "
+                    + " ".join([i.name for i in self.world_model.objects])
+                )
+            self.world_coll_checker.enable_obstacle(enable=True, name=x)
+
         self.detach_spheres_from_robot(link_name)
 
     def attach_spheres_to_robot(
@@ -3262,8 +3318,8 @@ class MotionGen(MotionGenConfig):
         if plan_config.pose_cost_metric is not None:
             self.update_pose_cost_metric(PoseCostMetric.reset_metric())
 
-        if plan_config.time_dilation_factor is not None and torch.count_nonzero(result.success) > 0:
-            result.retime_trajectory(
+        if plan_config.time_dilation_factor is not None and torch.count_nonzero(best_result.success) > 0:
+            best_result.retime_trajectory(
                 plan_config.time_dilation_factor,
                 interpolation_kind=self.finetune_trajopt_solver.interpolation_type,
             )
@@ -3883,6 +3939,8 @@ class MotionGen(MotionGenConfig):
         if ik_success == 0:
             result.status = MotionGenStatus.IK_FAIL
             result.success = result.success[:, 0]
+            result.position_error = result.position_error[:, 0]
+            result.rotation_error = result.rotation_error[:, 0]
             return result
 
         # do graph search:
@@ -4054,34 +4112,57 @@ class MotionGen(MotionGenConfig):
                 result.debug_info["trajopt_result"] = traj_result
 
             # run finetune
-            if plan_config.enable_finetune_trajopt and torch.count_nonzero(traj_result.success) > 0:
-                with profiler.record_function("motion_gen/finetune_trajopt"):
-                    seed_traj = traj_result.raw_action.clone()  # solution.position.clone()
-                    seed_traj = seed_traj.contiguous()
-                    og_solve_time = traj_result.solve_time
+            if plan_config.enable_finetune_trajopt:
+                if torch.count_nonzero(traj_result.success) > 0:
+                    with profiler.record_function("motion_gen/finetune_trajopt"):
+                        seed_traj = traj_result.raw_action.clone()  # solution.position.clone()
+                        seed_traj = seed_traj.contiguous()
+                        og_solve_time = traj_result.solve_time
 
-                    scaled_dt = torch.clamp(
-                        torch.max(traj_result.optimized_dt[traj_result.success])
-                        * self.finetune_dt_scale,
-                        self.trajopt_solver.minimum_trajectory_dt,
-                    )
-                    self.finetune_trajopt_solver.update_solver_dt(scaled_dt.item())
+                        scaled_dt = torch.clamp(
+                            torch.max(traj_result.optimized_dt[traj_result.success])
+                            * self.finetune_dt_scale,
+                            self.trajopt_solver.minimum_trajectory_dt,
+                        )
+                        self.finetune_trajopt_solver.update_solver_dt(scaled_dt.item())
 
-                    traj_result = self._solve_trajopt_from_solve_state(
-                        goal,
-                        solve_state,
-                        seed_traj,
-                        trajopt_instance=self.finetune_trajopt_solver,
-                        num_seeds_override=solve_state.num_trajopt_seeds,
-                    )
+                        traj_result = self._solve_trajopt_from_solve_state(
+                            goal,
+                            solve_state,
+                            seed_traj,
+                            trajopt_instance=self.finetune_trajopt_solver,
+                            num_seeds_override=solve_state.num_trajopt_seeds,
+                        )
 
-                result.finetune_time = traj_result.solve_time
+                    result.finetune_time = traj_result.solve_time
 
-                traj_result.solve_time = og_solve_time
-                if self.store_debug_in_result:
-                    result.debug_info["finetune_trajopt_result"] = traj_result
-            elif plan_config.enable_finetune_trajopt and len(traj_result.success.shape) == 2:
-                traj_result.success = traj_result.success[:, 0]
+                    traj_result.solve_time = og_solve_time
+                    if self.store_debug_in_result:
+                        result.debug_info["finetune_trajopt_result"] = traj_result
+
+                    if solve_state.batch_size == 1:
+                        # traj_result.success is a tensor of length 1 already
+                        traj_result.interpolated_solution = traj_result.interpolated_solution.unsqueeze(0)
+                        traj_result.position_error = traj_result.position_error.unsqueeze(0)
+                        traj_result.rotation_error = traj_result.rotation_error.unsqueeze(0)
+                        if traj_result.cspace_error is not None:
+                            traj_result.cspace_error = traj_result.cspace_error.unsqueeze(0)
+                        traj_result.goalset_index = traj_result.goalset_index.unsqueeze(0)
+                        # traj_result.path_buffer_last_tstep is a python list of length 1 already
+                        traj_result.solution = traj_result.solution.unsqueeze(0)
+                        traj_result.optimized_dt = traj_result.optimized_dt.unsqueeze(0)
+                else:
+                    traj_result.success = traj_result.success[::solve_state.num_trajopt_seeds]
+                    traj_result.interpolated_solution = traj_result.interpolated_solution[::solve_state.num_trajopt_seeds]
+                    traj_result.position_error = traj_result.position_error[::solve_state.num_trajopt_seeds]
+                    traj_result.rotation_error = traj_result.rotation_error[::solve_state.num_trajopt_seeds]
+                    if traj_result.cspace_error is not None:
+                        traj_result.cspace_error = traj_result.cspace_error[::solve_state.num_trajopt_seeds]
+                    # traj_result.goalset_index is of shape (batch_size * num_seeds, interpolation_steps), wants (batch_size)
+                    traj_result.goalset_index = traj_result.goalset_index[::solve_state.num_trajopt_seeds, 0]
+                    traj_result.path_buffer_last_tstep = traj_result.path_buffer_last_tstep[::solve_state.num_trajopt_seeds]
+                    traj_result.solution = traj_result.solution[::solve_state.num_trajopt_seeds]
+                    traj_result.optimized_dt = traj_result.optimized_dt[::solve_state.num_trajopt_seeds]
 
             result.success = traj_result.success
 
@@ -4097,7 +4178,7 @@ class MotionGen(MotionGenConfig):
             result.optimized_dt = traj_result.optimized_dt
             if torch.count_nonzero(traj_result.success) == 0:
                 result.status = MotionGenStatus.TRAJOPT_FAIL
-                result.success[:] = False
+                # result.success[:] = False
             if self.store_debug_in_result:
                 result.debug_info = {"trajopt_result": traj_result}
         return result
